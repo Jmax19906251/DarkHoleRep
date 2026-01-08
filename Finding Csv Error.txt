@@ -1,0 +1,340 @@
+# CSV Error Detection Script
+# Compares CSV files and checks for common Excel-related errors
+
+# CSV Error Checker - Simple Version
+# Place your CSV files in C:\run and execute this script
+
+$SourceFolder = "C:\run"
+$OutputReport = "C:\run\CSV_Error_Report.html"
+
+# Initialize error tracking
+$ErrorsFound = @()
+
+function Add-Error {
+    param($Category, $Location, $Description, $Value)
+    $script:ErrorsFound += [PSCustomObject]@{
+        Category = $Category
+        Location = $Location
+        Description = $Description
+        Value = $Value
+        Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    }
+}
+
+function Test-DateFormatIssues {
+    param($Data, $FileName)
+    
+    Write-Host "Checking for date format issues in $FileName..."
+    $rowNum = 2
+    foreach($row in $Data) {
+        foreach($prop in $row.PSObject.Properties) {
+            $value = $prop.Value
+            
+            # Check for Excel date serial numbers (common error)
+            if($value -match '^\d{5}$') {
+                Add-Error -Category "Date Format" -Location "$FileName - Row $rowNum, Column '$($prop.Name)'" `
+                    -Description "Possible Excel date serial number detected" -Value $value
+            }
+            
+            # Check for date format inconsistencies
+            if($value -match '\d{1,2}/\d{1,2}/\d{2,4}') {
+                if($value -notmatch '^\d{2}/\d{2}/\d{4}$' -and $value -notmatch '^\d{4}-\d{2}-\d{2}$') {
+                    Add-Error -Category "Date Format" -Location "$FileName - Row $rowNum, Column '$($prop.Name)'" `
+                        -Description "Inconsistent date format" -Value $value
+                }
+            }
+        }
+        $rowNum++
+    }
+}
+
+function Test-NumericErrors {
+    param($Data, $FileName)
+    
+    Write-Host "Checking for numeric errors in $FileName..."
+    $rowNum = 2
+    foreach($row in $Data) {
+        foreach($prop in $row.PSObject.Properties) {
+            $value = $prop.Value
+            
+            # Check for leading zeros lost (common Excel error)
+            if($value -match '^\d+$' -and $value.Length -lt 5) {
+                # Could be a zip code or ID that lost leading zeros
+                if($prop.Name -match 'zip|postal|id|code' -and $value.Length -lt 5) {
+                    Add-Error -Category "Numeric Format" -Location "$FileName - Row $rowNum, Column '$($prop.Name)'" `
+                        -Description "Possible missing leading zeros" -Value $value
+                }
+            }
+            
+            # Check for scientific notation (Excel converts large numbers)
+            if($value -match '^[\d\.]+E[+-]\d+$') {
+                Add-Error -Category "Numeric Format" -Location "$FileName - Row $rowNum, Column '$($prop.Name)'" `
+                    -Description "Scientific notation detected (Excel conversion)" -Value $value
+            }
+            
+            # Check for numbers stored as text with spaces
+            if($value -match '^\s*\d+\s+\d+\s*$') {
+                Add-Error -Category "Numeric Format" -Location "$FileName - Row $rowNum, Column '$($prop.Name)'" `
+                    -Description "Number with embedded spaces" -Value $value
+            }
+        }
+        $rowNum++
+    }
+}
+
+function Test-TextErrors {
+    param($Data, $FileName)
+    
+    Write-Host "Checking for text errors in $FileName..."
+    $rowNum = 2
+    foreach($row in $Data) {
+        foreach($prop in $row.PSObject.Properties) {
+            $value = $prop.Value
+            
+            # Check for extra whitespace
+            if($value -ne $value.Trim()) {
+                Add-Error -Category "Text Format" -Location "$FileName - Row $rowNum, Column '$($prop.Name)'" `
+                    -Description "Leading/trailing whitespace detected" -Value "'$value'"
+            }
+            
+            # Check for double spaces
+            if($value -match '  ') {
+                Add-Error -Category "Text Format" -Location "$FileName - Row $rowNum, Column '$($prop.Name)'" `
+                    -Description "Multiple consecutive spaces" -Value $value
+            }
+            
+            # Check for special characters that Excel might corrupt
+            if($value -match '[™®©€£]') {
+                Add-Error -Category "Text Format" -Location "$FileName - Row $rowNum, Column '$($prop.Name)'" `
+                    -Description "Special character that may be corrupted" -Value $value
+            }
+        }
+        $rowNum++
+    }
+}
+
+function Test-StructuralErrors {
+    param($Data, $FileName)
+    
+    Write-Host "Checking for structural errors in $FileName..."
+    
+    # Check for empty rows
+    $rowNum = 2
+    foreach($row in $Data) {
+        $allEmpty = $true
+        foreach($prop in $row.PSObject.Properties) {
+            if(![string]::IsNullOrWhiteSpace($prop.Value)) {
+                $allEmpty = $false
+                break
+            }
+        }
+        if($allEmpty) {
+            Add-Error -Category "Structure" -Location "$FileName - Row $rowNum" `
+                -Description "Empty row detected" -Value "All columns empty"
+        }
+        $rowNum++
+    }
+    
+    # Check for duplicate headers
+    $headers = $Data[0].PSObject.Properties.Name
+    $duplicateHeaders = $headers | Group-Object | Where-Object {$_.Count -gt 1}
+    foreach($dup in $duplicateHeaders) {
+        Add-Error -Category "Structure" -Location "$FileName - Headers" `
+            -Description "Duplicate column header" -Value $dup.Name
+    }
+}
+
+function Compare-CSVFiles {
+    param($Source, $Comparison)
+    
+    Write-Host "Comparing files for differences..."
+    
+    # Compare row counts
+    if($Source.Count -ne $Comparison.Count) {
+        Add-Error -Category "Comparison" -Location "File Structure" `
+            -Description "Row count mismatch" -Value "Source: $($Source.Count), Comparison: $($Comparison.Count)"
+    }
+    
+    # Compare headers
+    $sourceHeaders = $Source[0].PSObject.Properties.Name | Sort-Object
+    $compHeaders = $Comparison[0].PSObject.Properties.Name | Sort-Object
+    
+    $headerDiff = Compare-Object $sourceHeaders $compHeaders
+    if($headerDiff) {
+        foreach($diff in $headerDiff) {
+            $side = if($diff.SideIndicator -eq "<=") {"Source only"} else {"Comparison only"}
+            Add-Error -Category "Comparison" -Location "Headers" `
+                -Description "Column exists in $side" -Value $diff.InputObject
+        }
+    }
+    
+    # Compare data (first 100 rows to avoid performance issues)
+    $maxRows = [Math]::Min($Source.Count, $Comparison.Count, 100)
+    for($i = 0; $i -lt $maxRows; $i++) {
+        $sourceRow = $Source[$i]
+        $compRow = $Comparison[$i]
+        
+        foreach($prop in $sourceRow.PSObject.Properties) {
+            if($compRow.PSObject.Properties.Name -contains $prop.Name) {
+                if($sourceRow.$($prop.Name) -ne $compRow.$($prop.Name)) {
+                    Add-Error -Category "Comparison" -Location "Row $($i+2), Column '$($prop.Name)'" `
+                        -Description "Value mismatch" -Value "Source: '$($sourceRow.$($prop.Name))' vs Comparison: '$($compRow.$($prop.Name))'"
+                }
+            }
+        }
+    }
+}
+
+function Export-ErrorReport {
+    $html = @"
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CSV Error Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
+        h1 { color: #333; }
+        .summary { background-color: #fff; padding: 15px; border-radius: 5px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .error-category { margin-bottom: 30px; }
+        .error-category h2 { color: #d9534f; border-bottom: 2px solid #d9534f; padding-bottom: 5px; }
+        table { width: 100%; border-collapse: collapse; background-color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        th { background-color: #d9534f; color: white; padding: 12px; text-align: left; }
+        td { padding: 10px; border-bottom: 1px solid #ddd; }
+        tr:hover { background-color: #f5f5f5; }
+        .no-errors { color: #5cb85c; font-weight: bold; padding: 20px; text-align: center; }
+    </style>
+</head>
+<body>
+    <h1>CSV Error Detection Report</h1>
+    <div class="summary">
+        <p><strong>Generated:</strong> $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")</p>
+        <p><strong>Source File:</strong> $SourceFile</p>
+        $(if($ComparisonFile) {"<p><strong>Comparison File:</strong> $ComparisonFile</p>"})
+        <p><strong>Total Errors Found:</strong> $($ErrorsFound.Count)</p>
+    </div>
+"@
+
+    if($ErrorsFound.Count -eq 0) {
+        $html += "<div class='no-errors'>No errors detected! ✓</div>"
+    } else {
+        $categories = $ErrorsFound | Group-Object Category
+        
+        foreach($category in $categories) {
+            $html += "<div class='error-category'>"
+            $html += "<h2>$($category.Name) ($($category.Count) issues)</h2>"
+            $html += "<table><tr><th>Location</th><th>Description</th><th>Value</th></tr>"
+            
+            foreach($error in $category.Group) {
+                $html += "<tr><td>$($error.Location)</td><td>$($error.Description)</td><td>$($error.Value)</td></tr>"
+            }
+            
+            $html += "</table></div>"
+        }
+    }
+    
+    $html += "</body></html>"
+    
+    $html | Out-File -FilePath $OutputReport -Encoding UTF8
+    Write-Host "`nReport generated: $OutputReport" -ForegroundColor Green
+}
+
+# Main execution
+try {
+    Write-Host "CSV Error Checker" -ForegroundColor Cyan
+    Write-Host "=================" -ForegroundColor Cyan
+    Write-Host "Checking files in: $SourceFolder`n"
+    
+    # Check if folder exists
+    if(!(Test-Path $SourceFolder)) {
+        throw "Folder not found: $SourceFolder`nPlease create the C:\run folder first."
+    }
+    
+    # Find CSV files
+    $csvFiles = Get-ChildItem -Path $SourceFolder -Filter "*.csv" | Sort-Object Name
+    
+    if($csvFiles.Count -eq 0) {
+        throw "No CSV files found in $SourceFolder`nPlease place your CSV files in the C:\run folder."
+    }
+    
+    Write-Host "Found $($csvFiles.Count) CSV file(s):"
+    for($i=0; $i -lt $csvFiles.Count; $i++) {
+        Write-Host "  [$($i+1)] $($csvFiles[$i].Name)"
+    }
+    
+    # Auto-select if only one file
+    if($csvFiles.Count -eq 1) {
+        $SourceFile = $csvFiles[0].FullName
+        $ComparisonFile = $null
+        Write-Host "`nChecking: $($csvFiles[0].Name)" -ForegroundColor Green
+    }
+    # Auto-compare if two files
+    elseif($csvFiles.Count -eq 2) {
+        $SourceFile = $csvFiles[0].FullName
+        $ComparisonFile = $csvFiles[1].FullName
+        Write-Host "`nComparing both files..." -ForegroundColor Green
+    }
+    # Let user select if more than 2
+    else {
+        Write-Host "`nEnter file number to check (1-$($csvFiles.Count)):" -ForegroundColor Yellow
+        $selection = Read-Host
+        $SourceFile = $csvFiles[[int]$selection - 1].FullName
+        $ComparisonFile = $null
+    }
+    
+    # Import source CSV
+    Write-Host "`nImporting source file: $SourceFile"
+    $sourceData = Import-Csv $SourceFile
+    Write-Host "Loaded $($sourceData.Count) rows"
+    
+    # Run error checks on source file
+    Test-DateFormatIssues -Data $sourceData -FileName "Source"
+    Test-NumericErrors -Data $sourceData -FileName "Source"
+    Test-TextErrors -Data $sourceData -FileName "Source"
+    Test-StructuralErrors -Data $sourceData -FileName "Source"
+    
+    # If comparison file provided, check it and compare
+    if($ComparisonFile) {
+        if(!(Test-Path $ComparisonFile)) {
+            Write-Warning "Comparison file not found: $ComparisonFile"
+        } else {
+            Write-Host "`nImporting comparison file: $ComparisonFile"
+            $comparisonData = Import-Csv $ComparisonFile
+            Write-Host "Loaded $($comparisonData.Count) rows"
+            
+            Test-DateFormatIssues -Data $comparisonData -FileName "Comparison"
+            Test-NumericErrors -Data $comparisonData -FileName "Comparison"
+            Test-TextErrors -Data $comparisonData -FileName "Comparison"
+            Test-StructuralErrors -Data $comparisonData -FileName "Comparison"
+            
+            Compare-CSVFiles -Source $sourceData -Comparison $comparisonData
+        }
+    }
+    
+    # Generate report
+    Write-Host "`nGenerating error report..."
+    Export-ErrorReport
+    
+    # Open the report automatically
+    Start-Process $OutputReport
+    
+    # Display summary
+    Write-Host "`n=================" -ForegroundColor Cyan
+    Write-Host "Summary:" -ForegroundColor Cyan
+    Write-Host "Total errors found: $($ErrorsFound.Count)" -ForegroundColor $(if($ErrorsFound.Count -eq 0){"Green"}else{"Yellow"})
+    
+    if($ErrorsFound.Count -gt 0) {
+        $ErrorsFound | Group-Object Category | ForEach-Object {
+            Write-Host "  $($_.Name): $($_.Count)" -ForegroundColor Yellow
+        }
+    }
+    
+    Write-Host "`nReport saved to: $OutputReport" -ForegroundColor Green
+    Write-Host "Press any key to exit..."
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    
+} catch {
+    Write-Host "`nError: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Press any key to exit..."
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    exit 1
+}
