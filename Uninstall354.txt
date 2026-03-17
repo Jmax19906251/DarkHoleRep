@@ -1,0 +1,69 @@
+$DriveLetter = "M:"
+$UNCPath = "\\6feafs02\UserData\hjgEA"
+$CompanyFolder = Join-Path $env:LOCALAPPDATA "Company\DriveMapping"
+$LogFile = Join-Path $CompanyFolder "MapDrive-M.log"
+
+if (-not (Test-Path $CompanyFolder)) {
+    New-Item -Path $CompanyFolder -ItemType Directory -Force | Out-Null
+}
+
+function Write-Log {
+    param([string]$Message)
+    $Entry = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - $Message"
+    Add-Content -Path $LogFile -Value $Entry
+}
+
+Write-Log "=================================================="
+Write-Log "Uninstall script started"
+Write-Log "Target removal: $DriveLetter -> $UNCPath"
+
+$CurrentMapping = & net.exe use $DriveLetter 2>&1
+$CheckExitCode = $LASTEXITCODE
+
+Write-Log "Existing mapping check exit code: $CheckExitCode"
+Write-Log "Existing mapping output: $CurrentMapping"
+
+if ($CheckExitCode -ne 0) {
+    Write-Log "Drive $DriveLetter is not currently mapped. Nothing to remove."
+    exit 0
+}
+
+if ($CurrentMapping -match [regex]::Escape($UNCPath)) {
+    $RemoveResult = & net.exe use $DriveLetter /delete /yes 2>&1
+    $RemoveExitCode = $LASTEXITCODE
+
+    Write-Log "Removal exit code: $RemoveExitCode"
+    Write-Log "Removal output: $RemoveResult"
+
+    if ($RemoveExitCode -eq 0) {
+        Write-Log "SUCCESS: Removed mapping for $DriveLetter"
+        exit 0
+    }
+    else {
+        Write-Log "ERROR: Failed to remove mapping for $DriveLetter"
+        exit 1
+    }
+}
+else {
+    Write-Log "Drive $DriveLetter is mapped, but not to Path No changes needed."
+    exit 0
+}
+
+
+
+
+
+
+$DriveLetter = "M:"
+$UNCPath = "\\6feafs02\UserData\hjgEA"
+
+$CurrentMapping = & net.exe use $DriveLetter 2>&1
+
+if ($LASTEXITCODE -eq 0 -and $CurrentMapping -match [regex]::Escape($UNCPath)) {
+    Write-Output "Detected"
+    exit 0
+}
+else {
+    exit 1
+}
+}
