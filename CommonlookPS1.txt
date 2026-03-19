@@ -1,0 +1,12 @@
+$path = "HKLM:\SOFTWARE\Policies\Adobe\Acrobat Reader\DC\FeatureLockDown"
+
+# Ensure path exists
+if (!(Test-Path $path)) {
+    New-Item -Path $path -Force | Out-Null
+}
+
+# Enable whitelist feature
+New-ItemProperty -Path $path -Name "bUseWhitelistConfigFile" -PropertyType DWord -Value 1 -Force | Out-Null
+
+Write-Output "Whitelist feature enabled"
+exit 0
