@@ -1,0 +1,52 @@
+Strategic Intent
+
+Purpose of the Change:
+Implement automated mapping of the M: network drive to using Microsoft Intune. This automation ensures the drive is consistently mapped for assigned users without requiring manual configuration.
+
+Anticipated Business Impact:
+Automating the drive mapping reduces manual configuration errors and service desk requests while ensuring consistent access to the shared resource for users who require it.
+
+Scope and Level of Effort (LOE)
+
+Affected Parties:
+Users assigned to the test security group created for validating the automated M drive mapping in the production environment.
+
+Implementation Timeline:
+The mapping will be deployed through Microsoft Intune using a Win32 application package. The deployment will initially target a test security group containing a small number of production users to validate functionality before expanding the assignment if necessary.
+
+Implementation and Governance
+
+Implementation Plan:
+A PowerShell script packaged as an Intune Win32 application will be deployed to automatically map the M: drive to \6feafs02\UserData\hjgEA.
+
+The script will:
+
+Check if the drive is already mapped
+
+Confirm whether it maps to the correct network location
+
+Map the drive if it is not present
+
+Log the deployment results for troubleshooting purposes
+
+Validation and Risk Mitigation
+
+Pre-Deployment Validation:
+Testing will be conducted using the designated test security group to verify successful drive mapping and user access to the shared resource.
+
+Post-Implementation Verification:
+After deployment, verification will include confirming that the M drive is successfully mapped on assigned endpoints and that users can access the shared location.
+
+Contingency Plan
+
+If issues occur during deployment, the Intune application assignment can be removed and users can revert to manual drive mapping until the issue is resolved.
+
+Sustainment and Reporting
+
+Documentation Update:
+Relevant documentation and procedures will be updated to reflect the automated drive mapping implementation.
+
+After-Action Report (AAR):
+Following deployment validation, a brief summary of the deployment outcome will be documented.
+
+If you'd like, I can also give you a cleaner version formatted exactly like a change request submission (with tighter wording that reviewers usually prefer).
