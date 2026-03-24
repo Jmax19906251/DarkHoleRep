@@ -1,0 +1,64 @@
+$path = "HKLM:\SOFTWARE\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"
+
+# Ensure registry path exists
+if (!(Test-Path $path)) {
+    New-Item -Path $path -Force | Out-Null
+}
+
+# Enable whitelist feature
+New-ItemProperty -Path $path -Name "bUseWhitelistConfigFile" -PropertyType DWord -Value 1 -Force | Out-Null
+
+# Adobe install path (Acrobat)
+$installPath = "C:\Program Files\Adobe\Acrobat DC\Acrobat"
+
+# Create whitelist config file
+$configFile = Join-Path $installPath "ProtectedModeWhitelistConfig.txt"
+
+$configContent = @"
+; Adobe Protected Mode Whitelist
+FILES_ALLOW_READONLY=*
+"@
+
+$configContent | Out-File -FilePath $configFile -Encoding ASCII -Force
+
+Write-Output "Whitelist enabled and config file created"
+exit 0
+-------------------------------------------------------------
+
+$path = "HKLM:\SOFTWARE\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"
+
+# Ensure path exists
+if (!(Test-Path $path)) {
+    New-Item -Path $path -Force | Out-Null
+}
+
+# Disable feature but keep key
+New-ItemProperty -Path $path -Name "bUseWhitelistConfigFile" -PropertyType DWord -Value 0 -Force | Out-Null
+
+$installPath = "C:\Program Files\Adobe\Acrobat DC\Acrobat"
+$configFile = Join-Path $installPath "ProtectedModeWhitelistConfig.txt"
+
+if (Test-Path $configFile) {
+    Remove-Item $configFile -Force
+}
+
+Write-Output "Whitelist disabled and config file removed"
+exit 0
+
+
+
+----------------------------------------------------------------
+
+$path = "HKLM:\SOFTWARE\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"
+$configFile = "C:\Program Files\Adobe\Acrobat DC\Acrobat\ProtectedModeWhitelistConfig.txt"
+
+if ((Test-Path $path) -and (Test-Path $configFile)) {
+    $value = (Get-ItemProperty -Path $path -Name "bUseWhitelistConfigFile" -ErrorAction SilentlyContinue).bUseWhitelistConfigFile
+
+    if ($value -eq 1) {
+        Write-Output "Detected"
+        exit 0
+    }
+}
+
+exit 1
