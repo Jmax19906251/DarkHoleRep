@@ -16,7 +16,8 @@ $configFile = Join-Path $installPath "ProtectedModeWhitelistConfig.txt"
 
 $configContent = @"
 ; Adobe Protected Mode Whitelist
-FILES_ALLOW_READONLY=*
+FILES_ALLOW_ANY = *
+PROCESSES_ALLOW_ANY = *
 "@
 
 $configContent | Out-File -FilePath $configFile -Encoding ASCII -Force
