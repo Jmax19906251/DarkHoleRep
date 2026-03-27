@@ -1,0 +1,121 @@
+UEM Migration Discussion Prep Notes (MECM Migration)
+
+1. Discovery & Environment Review
+Notes
+- Request access to DPAD/MES artifacts from the PM.
+- Review discovery artifacts for the environment.
+- Request Admin and User GPRESULT from a Windows 11 device.
+- Validate current configurations:
+  - Firewall rules
+  - Java exclusions
+  - AppLocker rules
+  - Proxy / CBII URL
+  - Browser homepages
+  - Registry configurations
+
+Read-out
+First, we want to review the discovery artifacts and request both an admin and user GPRESULT from a Windows 11 device. This will help us identify any firewall rules, Java exclusions, AppLocker policies, proxy settings, or registry configurations that need to be replicated in UEM.
+
+2. DAFA Environment Requirements
+Notes
+- Confirm any DAFA-specific items:
+  - Intranet access
+  - Mapped or shared drives
+  - Internal applications
+  - Browser configuration policies
+  - Homepage requirements
+
+Read-out
+Next, we want to identify any DAFA-specific requirements such as intranet access, mapped drives, internal applications, or browser configuration policies. These items will determine what policies or configurations we need to create in Intune.
+
+3. Intune / UEM Configuration
+Notes
+- Create a DAFA category in Intune.
+- Create a dynamic device group.
+- Example group:
+  Intune-DMEA-Windows Devices
+
+Assign baseline policies such as:
+- Azure File Access – Entra Kerberos
+- Windows LAPS Automatic Mode
+- Local Administrator Groups
+- DoD365 Device Configurations
+- Windows 11 STIG Settings Catalog
+- WiFi configuration
+- Firefox update restrictions
+- Firefox homepage configuration
+- HID Administrative Templates
+
+Read-out
+From the UEM side, we will create a DAFA category in Intune and configure a dynamic device group to manage policy targeting. Once that group is created, we will assign the required baseline policies including Azure Kerberos file access, Windows LAPS configuration, Windows 11 STIG settings, WiFi policies, and browser configuration policies.
+
+4. Application Packaging
+Notes
+- Verify all DAFA-specific apps are packaged in Intune.
+- Create:
+  IntuneApps_(DAFAName).csv
+- Store in the requiredfiles blob storage container.
+- Include:
+  - Licensed software
+  - Program-specific applications
+
+Packaging Time Note
+- Application packaging typically takes approximately 8–16 hours per application to complete the packaging process.
+- This estimate does not include testing or validation time.
+- The total time may increase depending on the complexity of the application, dependencies, or required configurations.
+
+Read-out
+We will also verify that all DAFA-specific applications are packaged and working in Intune. Any licensed or program-specific software will be added to the IntuneApps CSV file and stored in the required files container so it can be referenced during migration.
+
+For application packaging, it generally takes around 8 to 16 hours to package a single application. This estimate does not include testing or validation, and the total time may increase depending on the complexity of the application or any additional dependencies that need to be configured.
+
+5. Migration Exclusions
+Notes
+- Create file:
+  ExcludeList_(DAFAName).csv
+- Include:
+  - Software exclusions
+  - Unsupported applications
+  - Systems that should not migrate
+
+Read-out
+If there are applications or systems that should not be migrated, we will document them in an exclusion list so the migration scripts skip those items.
+
+6. MECM Migration Setup
+Notes
+- Since migration runs through MECM:
+  - Create MECM deployment for DAFA
+  - Validate migration scripts in the task sequence
+  - Confirm agency code configuration
+  - Ensure scripts pass the correct agency name to logging
+  - Validate Switch to AHCI in BIOS step
+  - Validate Apply Windows Settings fallback account
+
+Additional MECM Setup Feedback
+- If the DAFA is managing their own migration:
+  - Create test task sequences
+  - Create test collections
+  - Create test deployments for validation
+- Validate the migration process in a controlled test group before production rollout
+- Ensure the migration scripts are included in the task sequence
+- Our team will provide all required migration scripts
+- We will walk the team through the setup and configuration process
+
+Read-out
+Since the migration is running through MECM, we will validate the MECM deployment and task sequence configuration. This includes confirming the migration scripts, agency code configuration, BIOS configuration steps, and the fallback account used in the Windows settings step.
+
+From the MECM side, if the DAFA is managing their own migration, we recommend starting by creating test task sequences, collections, and deployments to validate the migration process before moving to production. We will provide all of the required migration scripts and will walk the team through the setup and configuration to ensure everything is implemented correctly.
+
+7. Migration Validation
+Notes
+- Before production rollout:
+  - Test migration with pilot devices
+  - Confirm policies apply
+  - Confirm applications install
+  - Confirm user data migration works
+
+Read-out
+Before moving to production, we will validate the migration using pilot devices to confirm policies apply correctly, applications install successfully, and the migration scripts complete as expected.
+
+Key UEM One-Liner
+From the UEM side, our focus is ensuring policies, applications, and device configurations are ready in Intune so when the MECM migration completes the device immediately receives the correct baseline configuration.
