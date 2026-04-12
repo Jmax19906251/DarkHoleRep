@@ -1,0 +1,54 @@
+#====[ Script Settings ]====#
+
+$action = "Uninstall"
+$SourceApp = "C:\Program Files (x86)\InstallShield Installation Information\{AD8B8355B-A4E0-4DA1-BAC3-EA4FEA930691}\setup.exe"
+$ArgumentList = @(
+    "-runfromtemp"
+    "-l0x0409"
+    "-removeonly"
+    "-s"
+)
+
+#=======[ Execution ]=======#
+
+$Process = Start-Process -FilePath $SourceApp -ArgumentList $ArgumentList -NoNewWindow -Wait -PassThru
+
+if ($Process.ExitCode -eq 0 -or $Process.ExitCode -eq 3010) {
+    Write-Host "${action}ed Progress WS_FTP Professional successfully"
+    Exit 0
+}
+else {
+    Write-Host "$action failed with exit code $($Process.ExitCode)"
+    Exit $Process.ExitCode
+}
+
+
+
+
+
+
+
+#====[ Script Settings ]====#
+
+$action = "Uninstall"
+$SourceApp = "C:\Program Files (x86)\InstallShield Installation Information\{AD8B8355B-A4E0-4DA1-BAC3-EA4FEA930691}\setup.exe"
+$ArgumentList = @(
+    "-runfromtemp"
+    "-l0x0409"
+    "-removeonly"
+    "-s"
+    "-f2`"C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\WS_FTP_${action}.log`""
+)
+
+#=======[ Execution ]=======#
+
+$Process = Start-Process -FilePath $SourceApp -ArgumentList $ArgumentList -NoNewWindow -Wait -PassThru
+
+if ($Process.ExitCode -eq 0 -or $Process.ExitCode -eq 3010) {
+    Write-Host "${action}ed Progress WS_FTP Professional successfully"
+    Exit 0
+}
+else {
+    Write-Host "$action failed with exit code $($Process.ExitCode)"
+    Exit $Process.ExitCode
+}
