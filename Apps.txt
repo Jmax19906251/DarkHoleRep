@@ -1,0 +1,301 @@
+#================================================
+# Install SecureFX
+#================================================
+
+$SourceApp   = "SecureFX"
+$SourceEXE   = "SecureFX_Setup.exe"     # Update to your actual installer name
+$LicenseFile = "securefx.lic"           # Update to your actual license file name
+
+$EXEPath     = Join-Path $PSScriptRoot $SourceEXE
+$LicPath     = Join-Path $PSScriptRoot $LicenseFile
+
+$InstallArgs = "/S"                     # Update if vendor uses different silent switches
+
+$LicenseDestFolder = "C:\ProgramData\VanDyke"
+$LicenseDestPath   = Join-Path $LicenseDestFolder $LicenseFile
+
+$LogFile = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\${SourceApp}_Install.log"
+
+Start-Transcript -Path $LogFile -Append
+
+try {
+    Write-Output "Starting $SourceApp installation..."
+
+    if (!(Test-Path $EXEPath)) {
+        Write-Output "Installer not found: $EXEPath"
+        Stop-Transcript
+        exit 1
+    }
+
+    Write-Output "Running installer: $SourceEXE $InstallArgs"
+    $Process = Start-Process -FilePath $EXEPath -ArgumentList $InstallArgs -Wait -PassThru -WindowStyle Hidden
+
+    Write-Output "Installer exit code: $($Process.ExitCode)"
+
+    if ($Process.ExitCode -ne 0) {
+        Write-Output "$SourceApp install failed with exit code $($Process.ExitCode)"
+        Stop-Transcript
+        exit 1
+    }
+
+    if (Test-Path $LicPath) {
+        Write-Output "License file found: $LicPath"
+
+        if (!(Test-Path $LicenseDestFolder)) {
+            New-Item -Path $LicenseDestFolder -ItemType Directory -Force | Out-Null
+        }
+
+        Copy-Item -Path $LicPath -Destination $LicenseDestPath -Force
+        Write-Output "License file copied to: $LicenseDestPath"
+    }
+    else {
+        Write-Output "License file not found in package root. Skipping copy."
+    }
+
+    Write-Output "$SourceApp installation completed successfully."
+    Stop-Transcript
+    exit 0
+}
+catch {
+    Write-Output "An error occurred during installation: $($_.Exception.Message)"
+    Stop-Transcript
+    exit 1
+}
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+#================================================
+# Uninstall SecureFX
+#================================================
+
+$SourceApp = "SecureFX"
+$LogFile   = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\${SourceApp}_Uninstall.log"
+
+Start-Transcript -Path $LogFile -Append
+
+try {
+    Write-Output "Starting $SourceApp uninstall..."
+
+    $UninstallKey = Get-ItemProperty "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue |
+        Where-Object { $_.DisplayName -like "*SecureFX*" }
+
+    if (-not $UninstallKey) {
+        $UninstallKey = Get-ItemProperty "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue |
+            Where-Object { $_.DisplayName -like "*SecureFX*" }
+    }
+
+    if ($UninstallKey) {
+        $UninstallString = $UninstallKey.UninstallString
+        Write-Output "Found uninstall string: $UninstallString"
+
+        if ($UninstallString -match "msiexec") {
+            $Args = $UninstallString.Replace("MsiExec.exe", "").Replace("msiexec.exe", "").Trim()
+
+            if ($Args -notmatch "/qn") {
+                $Args += " /qn /norestart"
+            }
+
+            $Process = Start-Process -FilePath "msiexec.exe" -ArgumentList $Args -Wait -PassThru -WindowStyle Hidden
+            Write-Output "Uninstall exit code: $($Process.ExitCode)"
+        }
+        else {
+            Start-Process -FilePath "cmd.exe" -ArgumentList "/c `"$UninstallString`"" -Wait -WindowStyle Hidden
+        }
+    }
+    else {
+        Write-Output "$SourceApp uninstall string not found."
+    }
+
+    $LicenseDestPath = "C:\ProgramData\VanDyke\securefx.lic"
+    if (Test-Path $LicenseDestPath) {
+        Remove-Item -Path $LicenseDestPath -Force -ErrorAction SilentlyContinue
+        Write-Output "Removed license file: $LicenseDestPath"
+    }
+
+    Write-Output "$SourceApp uninstall completed."
+    Stop-Transcript
+    exit 0
+}
+catch {
+    Write-Output "An error occurred during uninstall: $($_.Exception.Message)"
+    Stop-Transcript
+    exit 1
+}
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+$Path = "C:\Program Files\VanDyke Software\SecureFX\SecureFX.exe"
+
+if (Test-Path $Path) {
+    Write-Output "SecureFX detected."
+    exit 0
+}
+else {
+    Write-Output "SecureFX not detected."
+    exit 1
+}
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#=====[ Script Settings ]=====#
+
+$action = "Install"
+$SourceApp = "camtasia 2024.exe"
+$ArgumentList = @(
+    "/quiet"
+    "/norestart"
+    "/log"
+    "`"C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\Camtasia2024_$($action).log`""
+)
+
+#=====[ Execution ]=====#
+
+$InstallerPath = Join-Path $PSScriptRoot $SourceApp
+
+Start-Process -FilePath $InstallerPath -ArgumentList $ArgumentList -Wait -NoNewWindow
+Write-Host "$($action)ed $SourceApp successfully"
+Exit 0
+----------------------------------------------------------------------------------------------------------------------------------------------------
+#=====[ Script Settings ]=====#
+
+$action = "Uninstall"
+
+$App = Get-ItemProperty `
+    "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" ,
+    "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" `
+    -ErrorAction SilentlyContinue | Where-Object {
+        $_.DisplayName -like "*Camtasia*" -and $_.DisplayName -like "*2024*"
+    } | Select-Object -First 1
+
+#=====[ Execution ]=====#
+
+if (!$App) {
+    Write-Host "Camtasia 2024 not found"
+    Exit 0
+}
+
+if ($App.UninstallString -match "MsiExec\.exe") {
+    $Guid = [regex]::Match($App.UninstallString, '\{[A-Z0-9\-]+\}', 'IgnoreCase').Value
+
+    if ($Guid) {
+        Start-Process -FilePath "msiexec.exe" -ArgumentList "/x $Guid /qn /norestart" -Wait -NoNewWindow
+        Write-Host "$($action)ed $($App.DisplayName) successfully"
+        Exit 0
+    }
+    else {
+        Write-Host "Could not parse uninstall GUID"
+        Exit 1
+    }
+}
+else {
+    Start-Process -FilePath "cmd.exe" -ArgumentList "/c `"$($App.UninstallString)`" /quiet /norestart" -Wait -NoNewWindow
+    Write-Host "$($action)ed $($App.DisplayName) successfully"
+    Exit 0
+}
+----------------------------------------------------------------------------------------------------------------------------------------------
+$App = Get-ItemProperty `
+    "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" ,
+    "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" `
+    -ErrorAction SilentlyContinue | Where-Object {
+        $_.DisplayName -like "*Camtasia*" -and $_.DisplayName -like "*2024*"
+    } | Select-Object -First 1
+
+if ($App) {
+    Write-Host "Detected $($App.DisplayName)"
+    Exit 0
+}
+else {
+    Exit 1
+}
+------------------------------------------------------------------------------------------------------------------------------------------------
+
+#=====[ Script Settings ]=====#
+$action     = "Install"
+$SourceApp  = "BIPublisherDesktop64Bit.exe"   # Change if your EXE name is different
+$SourcePath = Join-Path $PSScriptRoot $SourceApp
+$ISSFile    = Join-Path $PSScriptRoot "setup.iss"
+$LogFile    = "C:\Windows\Temp\BIPublisher_Install.log"
+$LogPath    = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\BIPublisherDesktop64Bit_${action}.log"
+
+#=====[ Logging ]=====#
+Start-Transcript -Path $LogPath -Append -Force
+
+try {
+    Write-Output "Starting $action for BI Publisher Desktop 64-bit..."
+
+    if (-not (Test-Path $SourcePath)) {
+        Write-Output "ERROR: EXE not found at $SourcePath"
+        Exit 1
+    }
+
+    if (-not (Test-Path $ISSFile)) {
+        Write-Output "ERROR: setup.iss not found at $ISSFile"
+        Exit 1
+    }
+
+    $ArgumentList = "/s /f1`"$ISSFile`" /f2`"$LogFile`" /sms"
+    Write-Output "Launching installer: $SourcePath"
+    Write-Output "Arguments: $ArgumentList"
+
+    $Process = Start-Process -FilePath $SourcePath -ArgumentList $ArgumentList -Wait -PassThru -WindowStyle Hidden
+
+    Start-Sleep -Seconds 5
+
+    if (Test-Path $LogFile) {
+        Write-Output "Install log found at $LogFile"
+
+        $ResultLine = Get-Content $LogFile -ErrorAction SilentlyContinue | Select-String "ResultCode="
+        if ($ResultLine) {
+            $ResultCode = (($ResultLine -split "=")[1]).Trim()
+            Write-Output "InstallShield ResultCode: $ResultCode"
+
+            if ($ResultCode -eq "0") {
+                Write-Output "Installation completed successfully."
+                Exit 0
+            }
+            else {
+                Write-Output "Installation failed. ResultCode: $ResultCode"
+                Exit 1
+            }
+        }
+        else {
+            Write-Output "ResultCode not found in log. Checking process exit code."
+            if ($Process.ExitCode -eq 0) {
+                Write-Output "Installer exited successfully."
+                Exit 0
+            }
+            else {
+                Write-Output "Installer exit code: $($Process.ExitCode)"
+                Exit 1
+            }
+        }
+    }
+    else {
+        Write-Output "Install log was not created. Checking process exit code."
+        if ($Process.ExitCode -eq 0) {
+            Write-Output "Installer exited successfully."
+            Exit 0
+        }
+        else {
+            Write-Output "Installer exit code: $($Process.ExitCode)"
+            Exit 1
+        }
+    }
+}
+catch {
+    Write-Output "ERROR: $_"
+    Exit 1
+}
+finally {
+    Stop-Transcript | Out-Null
+}
+
+--------------------------------------------------------------------------------------------------------------------------------
+$AppPath = "C:\Program Files\Oracle\BI Publisher\BI Publisher Desktop\Template Builder for Word.xla"
+
+if (Test-Path $AppPath) {
+    Write-Output "Detected"
+    Exit 0
+}
+else {
+    Exit 1
+}
+------------------------------------------------------------------------------------------------------------------------------- 
+
+
+
