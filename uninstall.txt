@@ -1,18 +1,54 @@
 #=====[ Script Settings ]=====#
 
-$action = "Install"
-$SourceApp = "camtasia 2024.exe"
-$ArgumentList = @(
-    "/quiet"
-    "/norestart"
-    "/log"
-    "`"C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\Camtasia2024_$($action).log`""
-)
+$action = "Uninstall"
+
+$App = Get-ItemProperty `
+    "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" `
+    -ErrorAction SilentlyContinue | Where-Object {
+        $_.DisplayName -like "*Camtasia*" -and $_.DisplayName -like "*2024*"
+    } | Select-Object -First 1
 
 #=====[ Execution ]=====#
 
-$InstallerPath = Join-Path $PSScriptRoot $SourceApp
+if (!$App) {
+    Write-Host "Camtasia 2024 not found"
+    Exit 0
+}
 
-Start-Process -FilePath $InstallerPath -ArgumentList $ArgumentList -Wait -NoNewWindow
-Write-Host "$($action)ed $SourceApp successfully"
-Exit 0
+Write-Host "Found: $($App.DisplayName)"
+Write-Host "UninstallString: $($App.UninstallString)"
+
+if ($App.UninstallString -match "MsiExec\.exe") {
+    $Guid = [regex]::Match($App.UninstallString, '\{[A-Z0-9\-]+\}', 'IgnoreCase').Value
+
+    if ($Guid) {
+        Start-Process -FilePath "msiexec.exe" -ArgumentList "/x $Guid /qn /norestart" -Wait -NoNewWindow
+        Write-Host "$($action)ed $($App.DisplayName) successfully"
+        Exit 0
+    }
+    else {
+        Write-Host "Could not parse uninstall GUID"
+        Exit 1
+    }
+}
+else {
+    Start-Process -FilePath "cmd.exe" -ArgumentList "/c `"$($App.UninstallString)`" /quiet /norestart" -Wait -NoNewWindow
+    Write-Host "$($action)ed $($App.DisplayName) successfully"
+    Exit 0
+}
+
+------------------------------------------------------------------------------------------------------------------------------------
+
+$App = Get-ItemProperty `
+    "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" `
+    -ErrorAction SilentlyContinue | Where-Object {
+        $_.DisplayName -like "*Camtasia*" -and $_.DisplayName -like "*2024*"
+    } | Select-Object -First 1
+
+if ($App) {
+    Write-Host "Detected $($App.DisplayName)"
+    Exit 0
+}
+else {
+    Exit 1
+}
