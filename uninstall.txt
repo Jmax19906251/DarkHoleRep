@@ -1,58 +1,74 @@
-Start-Process "C:\Program Files (x86)\InstallShield Installation Information\{SFCACFA0-4327-4320-9ED4-7B46FE4E30DD}\setup.exe" -ArgumentList "-runfromtemp -l0x0409 -removeonly -silent" -Wait
-
-
-
-
-
-
-
-
 #=====[ Script Settings ]=====#
 $action  = "Uninstall"
 $LogPath = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\BIPublisher_Uninstall.log"
+$AppFile = "C:\Program Files\Oracle\BI Publisher\BI Publisher Desktop\Template Builder for Word.xla"
 
 Start-Transcript -Path $LogPath -Append -Force
 
 try {
+    Write-Output "Starting BI Publisher uninstall cleanup..."
 
-Write-Output "Searching for BI Publisher uninstall entry..."
+    $Apps = Get-ItemProperty `
+        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" ,
+        "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" `
+        -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.DisplayName -like "*BI Publisher*" -or
+            $_.DisplayName -like "*Template Builder for Word*"
+        }
 
-$App = Get-ItemProperty `
-"HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" ,
-"HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" |
-Where-Object {$_.DisplayName -like "*BI Publisher*"}
+    $FileExists = Test-Path $AppFile
+    Write-Output "Application file exists: $FileExists"
 
-if ($App){
+    if ($FileExists) {
+        Write-Output "App file still exists. Not doing registry cleanup only."
+        Exit 1
+    }
 
-Write-Output "Found $($App.DisplayName)"
-$UninstallString = $App.UninstallString
+    if ($Apps) {
+        foreach ($App in $Apps) {
+            Write-Output "Found leftover registry entry: $($App.DisplayName)"
+            Write-Output "PSPath: $($App.PSPath)"
 
-Write-Output "Running uninstall: $UninstallString"
+            try {
+                $KeyPath = $App.PSPath -replace "Microsoft.PowerShell.Core\\Registry::", ""
+                Remove-Item -Path ("Registry::" + $KeyPath) -Recurse -Force -ErrorAction Stop
+                Write-Output "Removed registry key for $($App.DisplayName)"
+            }
+            catch {
+                Write-Output "Failed removing registry key for $($App.DisplayName): $_"
+                Exit 1
+            }
+        }
+    }
+    else {
+        Write-Output "No BI Publisher registry entries found."
+    }
 
-Start-Process "cmd.exe" -ArgumentList "/c `"$UninstallString -silent`"" -Wait
+    Start-Sleep -Seconds 3
 
+    $StillThere = Get-ItemProperty `
+        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" ,
+        "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" `
+        -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.DisplayName -like "*BI Publisher*" -or
+            $_.DisplayName -like "*Template Builder for Word*"
+        }
+
+    if (-not $StillThere) {
+        Write-Output "Cleanup uninstall completed successfully."
+        Exit 0
+    }
+    else {
+        Write-Output "Registry entry still remains."
+        Exit 1
+    }
 }
-
-Start-Sleep 5
-
-$Check = Get-ItemProperty `
-"HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" ,
-"HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" |
-Where-Object {$_.DisplayName -like "*BI Publisher*"}
-
-if(!$Check){
-Write-Output "Uninstall successful"
-Exit 0
+catch {
+    Write-Output "ERROR: $_"
+    Exit 1
 }
-else{
-Write-Output "Uninstall failed"
-Exit 1
+finally {
+    Stop-Transcript | Out-Null
 }
-
-}
-catch{
-Write-Output $_
-Exit 1
-}
-
-Stop-Transcript
