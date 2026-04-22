@@ -1,64 +1,18 @@
 #=====[ Script Settings ]=====#
-$action     = "Install"
-$SourceApp  = "BIPublisherDesktop64_64bit.exe"
-$SourcePath = Join-Path $PSScriptRoot $SourceApp
-$ISSFile    = Join-Path $PSScriptRoot "setup.iss"
-$LogFile    = "C:\Windows\Temp\BIPublisher_Install.log"
-$LogPath    = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\BIPublisherDesktop64Bit_${action}.log"
 
-Start-Transcript -Path $LogPath -Append -Force
+$action = "Install"
+$SourceApp = "camtasia 2024.exe"
+$ArgumentList = @(
+    "/quiet"
+    "/norestart"
+    "/log"
+    "`"C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\Camtasia2024_$($action).log`""
+)
 
-try {
-    Write-Output "Starting $action for BI Publisher Desktop 64-bit..."
+#=====[ Execution ]=====#
 
-    Stop-Process -Name WINWORD -Force -ErrorAction SilentlyContinue
+$InstallerPath = Join-Path $PSScriptRoot $SourceApp
 
-    if (-not (Test-Path $SourcePath)) {
-        Write-Output "ERROR: EXE not found at $SourcePath"
-        Exit 1
-    }
-
-    if (-not (Test-Path $ISSFile)) {
-        Write-Output "ERROR: setup.iss not found at $ISSFile"
-        Exit 1
-    }
-
-    $ArgumentList = "/s /f1`"$ISSFile`" /f2`"$LogFile`""
-    Write-Output "Launching installer: $SourcePath"
-    Write-Output "Arguments: $ArgumentList"
-
-    $Process = Start-Process -FilePath $SourcePath -ArgumentList $ArgumentList -Wait -PassThru -WindowStyle Hidden
-
-    Start-Sleep -Seconds 5
-
-    if (Test-Path $LogFile) {
-        $ResultLine = Get-Content $LogFile -ErrorAction SilentlyContinue | Select-String "ResultCode="
-        if ($ResultLine) {
-            $ResultCode = (($ResultLine -split "=")[1]).Trim()
-            Write-Output "InstallShield ResultCode: $ResultCode"
-
-            if ($ResultCode -eq "0") {
-                Write-Output "Installation completed successfully."
-                Exit 0
-            } else {
-                Write-Output "Installation failed. ResultCode: $ResultCode"
-                Exit 1
-            }
-        }
-    }
-
-    if ($Process.ExitCode -eq 0) {
-        Write-Output "Installer exited successfully."
-        Exit 0
-    } else {
-        Write-Output "Installer exit code: $($Process.ExitCode)"
-        Exit 1
-    }
-}
-catch {
-    Write-Output "ERROR: $($_.Exception.Message)"
-    Exit 1
-}
-finally {
-    Stop-Transcript | Out-Null
-}
+Start-Process -FilePath $InstallerPath -ArgumentList $ArgumentList -Wait -NoNewWindow
+Write-Host "$($action)ed $SourceApp successfully"
+Exit 0
