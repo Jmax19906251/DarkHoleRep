@@ -1,3 +1,99 @@
-Get-ItemProperty "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" |
-Where-Object {$_.DisplayName -like "*BI Publisher*"} |
-ForEach-Object { Remove-Item $_.PSPath -Recurse -Force }
+#=====[ Script Settings ]=====#
+$action      = "Uninstall"
+$LogPath     = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\BIPublisher_Uninstall.log"
+$AppFile     = "C:\Program Files\Oracle\BI Publisher\BI Publisher Desktop\Template Builder for Word.xla"
+$AppFolders  = @(
+    "C:\Program Files\Oracle\BI Publisher",
+    "C:\Program Files (x86)\Oracle\BI Publisher"
+)
+
+Start-Transcript -Path $LogPath -Append -Force
+
+try {
+    Write-Output "Starting BI Publisher uninstall cleanup..."
+
+    $Apps = Get-ItemProperty `
+        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" ,
+        "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" `
+        -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.DisplayName -like "*BI Publisher*" -or
+            $_.DisplayName -like "*Template Builder for Word*"
+        }
+
+    $FileExists = Test-Path $AppFile
+    Write-Output "Primary application file exists: $FileExists"
+
+    if ($Apps) {
+        foreach ($App in $Apps) {
+            Write-Output "Found registry entry: $($App.DisplayName)"
+            Write-Output "PSPath: $($App.PSPath)"
+
+            try {
+                Remove-Item -Path $App.PSPath -Recurse -Force -ErrorAction Stop
+                Write-Output "Removed registry key for $($App.DisplayName)"
+            }
+            catch {
+                Write-Output "Failed removing registry key for $($App.DisplayName): $($_.Exception.Message)"
+                Exit 1
+            }
+        }
+    }
+    else {
+        Write-Output "No BI Publisher registry entries found."
+    }
+
+    foreach ($Folder in $AppFolders) {
+        if (Test-Path $Folder) {
+            try {
+                Write-Output "Removing folder: $Folder"
+                Remove-Item -Path $Folder -Recurse -Force -ErrorAction Stop
+                Write-Output "Removed folder: $Folder"
+            }
+            catch {
+                Write-Output "Failed removing folder $Folder : $($_.Exception.Message)"
+                Exit 1
+            }
+        }
+        else {
+            Write-Output "Folder not found: $Folder"
+        }
+    }
+
+    Start-Sleep -Seconds 3
+
+    $StillThere = Get-ItemProperty `
+        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" ,
+        "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" `
+        -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.DisplayName -like "*BI Publisher*" -or
+            $_.DisplayName -like "*Template Builder for Word*"
+        }
+
+    $FolderStillExists = $false
+    foreach ($Folder in $AppFolders) {
+        if (Test-Path $Folder) {
+            Write-Output "Folder still exists: $Folder"
+            $FolderStillExists = $true
+        }
+    }
+
+    if (-not $StillThere -and -not $FolderStillExists) {
+        Write-Output "Cleanup uninstall completed successfully."
+        Exit 0
+    }
+    else {
+        Write-Output "Cleanup incomplete."
+        Write-Output "Registry still present: $([bool]$StillThere)"
+        Write-Output "Folders still present: $FolderStillExists"
+        Exit 1
+    }
+}
+catch {
+    Write-Output "ERROR: $($_.Exception.Message)"
+    Exit 1
+}
+finally {
+    Stop-Transcript | Out-Null
+}
