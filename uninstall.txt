@@ -1,16 +1,23 @@
 #=====[ Script Settings ]=====#
 $action      = "Uninstall"
 $LogPath     = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\BIPublisher_Uninstall.log"
-$AppFile     = "C:\Program Files\Oracle\BI Publisher\BI Publisher Desktop\Template Builder for Word.xla"
 $AppFolders  = @(
     "C:\Program Files\Oracle\BI Publisher",
     "C:\Program Files (x86)\Oracle\BI Publisher"
+)
+$ShortcutPaths = @(
+    "C:\Users\Public\Desktop\Oracle BI Publisher Desktop.lnk",
+    "C:\Users\Public\Desktop\BI Publisher Desktop.lnk",
+    "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Oracle BI Publisher Desktop.lnk",
+    "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\BI Publisher Desktop.lnk",
+    "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Oracle\BI Publisher Desktop.lnk",
+    "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Oracle\BI Publisher\BI Publisher Desktop.lnk"
 )
 
 Start-Transcript -Path $LogPath -Append -Force
 
 try {
-    Write-Output "Starting BI Publisher uninstall cleanup..."
+    Write-Output "Starting BI Publisher uninstall..."
 
     $Apps = Get-ItemProperty `
         "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" ,
@@ -20,9 +27,6 @@ try {
             $_.DisplayName -like "*BI Publisher*" -or
             $_.DisplayName -like "*Template Builder for Word*"
         }
-
-    $FileExists = Test-Path $AppFile
-    Write-Output "Primary application file exists: $FileExists"
 
     if ($Apps) {
         foreach ($App in $Apps) {
@@ -43,6 +47,8 @@ try {
         Write-Output "No BI Publisher registry entries found."
     }
 
+    Get-Process WINWORD -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+
     foreach ($Folder in $AppFolders) {
         if (Test-Path $Folder) {
             try {
@@ -57,6 +63,41 @@ try {
         }
         else {
             Write-Output "Folder not found: $Folder"
+        }
+    }
+
+    foreach ($Shortcut in $ShortcutPaths) {
+        if (Test-Path $Shortcut) {
+            try {
+                Write-Output "Removing shortcut: $Shortcut"
+                Remove-Item -Path $Shortcut -Force -ErrorAction Stop
+                Write-Output "Removed shortcut: $Shortcut"
+            }
+            catch {
+                Write-Output "Failed removing shortcut $Shortcut : $($_.Exception.Message)"
+            }
+        }
+        else {
+            Write-Output "Shortcut not found: $Shortcut"
+        }
+    }
+
+    $StartMenuFolders = @(
+        "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Oracle\BI Publisher",
+        "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Oracle"
+    )
+
+    foreach ($SMFolder in $StartMenuFolders) {
+        if (Test-Path $SMFolder) {
+            try {
+                if (-not (Get-ChildItem -Path $SMFolder -Force -ErrorAction SilentlyContinue)) {
+                    Write-Output "Removing empty Start Menu folder: $SMFolder"
+                    Remove-Item -Path $SMFolder -Force -ErrorAction Stop
+                }
+            }
+            catch {
+                Write-Output "Failed removing Start Menu folder $SMFolder : $($_.Exception.Message)"
+            }
         }
     }
 
@@ -79,14 +120,23 @@ try {
         }
     }
 
-    if (-not $StillThere -and -not $FolderStillExists) {
-        Write-Output "Cleanup uninstall completed successfully."
+    $ShortcutStillExists = $false
+    foreach ($Shortcut in $ShortcutPaths) {
+        if (Test-Path $Shortcut) {
+            Write-Output "Shortcut still exists: $Shortcut"
+            $ShortcutStillExists = $true
+        }
+    }
+
+    if (-not $StillThere -and -not $FolderStillExists -and -not $ShortcutStillExists) {
+        Write-Output "Uninstall completed successfully."
         Exit 0
     }
     else {
-        Write-Output "Cleanup incomplete."
+        Write-Output "Uninstall cleanup incomplete."
         Write-Output "Registry still present: $([bool]$StillThere)"
         Write-Output "Folders still present: $FolderStillExists"
+        Write-Output "Shortcuts still present: $ShortcutStillExists"
         Exit 1
     }
 }
