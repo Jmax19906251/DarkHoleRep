@@ -1,142 +1,59 @@
 #=====[ Script Settings ]=====#
-$action      = "Uninstall"
-$LogPath     = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\BIPublisher_Uninstall.log"
-$AppFolders  = @(
-    "C:\Program Files\Oracle\BI Publisher",
-    "C:\Program Files (x86)\Oracle\BI Publisher"
-)
-$ShortcutPaths = @(
-    "C:\Users\Public\Desktop\Oracle BI Publisher Desktop.lnk",
-    "C:\Users\Public\Desktop\BI Publisher Desktop.lnk",
-    "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Oracle BI Publisher Desktop.lnk",
-    "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\BI Publisher Desktop.lnk",
-    "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Oracle\BI Publisher Desktop.lnk",
-    "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Oracle\BI Publisher\BI Publisher Desktop.lnk"
-)
+$action     = "Install"
+$SourceApp  = "BIPublisherDesktop64_64bit.exe"
+$SourcePath = Join-Path $PSScriptRoot $SourceApp
+$LogFile    = "C:\Windows\Temp\BIPublisher_Install.log"
+$LogPath    = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\BIPublisher_${action}.log"
 
 Start-Transcript -Path $LogPath -Append -Force
 
 try {
-    Write-Output "Starting BI Publisher uninstall..."
+    Write-Output "Starting $action for BI Publisher Desktop 64-bit..."
 
-    $Apps = Get-ItemProperty `
+    if (-not (Test-Path $SourcePath)) {
+        Write-Output "ERROR: EXE not found at $SourcePath"
+        Exit 1
+    }
+
+    $ArgumentList = "/s /v`"/qn /norestart /L*v `"$LogFile`"`""
+    Write-Output "Launching installer: $SourcePath"
+    Write-Output "Arguments: $ArgumentList"
+
+    $Process = Start-Process -FilePath $SourcePath -ArgumentList $ArgumentList -Wait -PassThru -WindowStyle Hidden
+
+    Start-Sleep -Seconds 5
+
+    $RegApp = Get-ItemProperty `
         "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" ,
         "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" `
         -ErrorAction SilentlyContinue |
         Where-Object {
             $_.DisplayName -like "*BI Publisher*" -or
             $_.DisplayName -like "*Template Builder for Word*"
-        }
+        } |
+        Select-Object -First 1
 
-    if ($Apps) {
-        foreach ($App in $Apps) {
-            Write-Output "Found registry entry: $($App.DisplayName)"
-            Write-Output "PSPath: $($App.PSPath)"
-
-            try {
-                Remove-Item -Path $App.PSPath -Recurse -Force -ErrorAction Stop
-                Write-Output "Removed registry key for $($App.DisplayName)"
-            }
-            catch {
-                Write-Output "Failed removing registry key for $($App.DisplayName): $($_.Exception.Message)"
-                Exit 1
-            }
-        }
-    }
-    else {
-        Write-Output "No BI Publisher registry entries found."
-    }
-
-    Get-Process WINWORD -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-
-    foreach ($Folder in $AppFolders) {
-        if (Test-Path $Folder) {
-            try {
-                Write-Output "Removing folder: $Folder"
-                Remove-Item -Path $Folder -Recurse -Force -ErrorAction Stop
-                Write-Output "Removed folder: $Folder"
-            }
-            catch {
-                Write-Output "Failed removing folder $Folder : $($_.Exception.Message)"
-                Exit 1
-            }
-        }
-        else {
-            Write-Output "Folder not found: $Folder"
-        }
-    }
-
-    foreach ($Shortcut in $ShortcutPaths) {
-        if (Test-Path $Shortcut) {
-            try {
-                Write-Output "Removing shortcut: $Shortcut"
-                Remove-Item -Path $Shortcut -Force -ErrorAction Stop
-                Write-Output "Removed shortcut: $Shortcut"
-            }
-            catch {
-                Write-Output "Failed removing shortcut $Shortcut : $($_.Exception.Message)"
-            }
-        }
-        else {
-            Write-Output "Shortcut not found: $Shortcut"
-        }
-    }
-
-    $StartMenuFolders = @(
-        "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Oracle\BI Publisher",
-        "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Oracle"
+    $FilePaths = @(
+        "C:\Program Files\Oracle\BI Publisher\BI Publisher Desktop\Template Builder for Word.xla",
+        "C:\Program Files (x86)\Oracle\BI Publisher\BI Publisher Desktop\Template Builder for Word.xla"
     )
 
-    foreach ($SMFolder in $StartMenuFolders) {
-        if (Test-Path $SMFolder) {
-            try {
-                if (-not (Get-ChildItem -Path $SMFolder -Force -ErrorAction SilentlyContinue)) {
-                    Write-Output "Removing empty Start Menu folder: $SMFolder"
-                    Remove-Item -Path $SMFolder -Force -ErrorAction Stop
-                }
-            }
-            catch {
-                Write-Output "Failed removing Start Menu folder $SMFolder : $($_.Exception.Message)"
-            }
+    $FileFound = $false
+    foreach ($File in $FilePaths) {
+        if (Test-Path $File) {
+            $FileFound = $true
+            Write-Output "Found installed file: $File"
+            break
         }
     }
 
-    Start-Sleep -Seconds 3
-
-    $StillThere = Get-ItemProperty `
-        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" ,
-        "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" `
-        -ErrorAction SilentlyContinue |
-        Where-Object {
-            $_.DisplayName -like "*BI Publisher*" -or
-            $_.DisplayName -like "*Template Builder for Word*"
-        }
-
-    $FolderStillExists = $false
-    foreach ($Folder in $AppFolders) {
-        if (Test-Path $Folder) {
-            Write-Output "Folder still exists: $Folder"
-            $FolderStillExists = $true
-        }
-    }
-
-    $ShortcutStillExists = $false
-    foreach ($Shortcut in $ShortcutPaths) {
-        if (Test-Path $Shortcut) {
-            Write-Output "Shortcut still exists: $Shortcut"
-            $ShortcutStillExists = $true
-        }
-    }
-
-    if (-not $StillThere -and -not $FolderStillExists -and -not $ShortcutStillExists) {
-        Write-Output "Uninstall completed successfully."
+    if ($RegApp -or $FileFound) {
+        Write-Output "Installation completed successfully."
         Exit 0
     }
     else {
-        Write-Output "Uninstall cleanup incomplete."
-        Write-Output "Registry still present: $([bool]$StillThere)"
-        Write-Output "Folders still present: $FolderStillExists"
-        Write-Output "Shortcuts still present: $ShortcutStillExists"
+        Write-Output "Installation failed. App not detected after install."
+        Write-Output "Process exit code: $($Process.ExitCode)"
         Exit 1
     }
 }
