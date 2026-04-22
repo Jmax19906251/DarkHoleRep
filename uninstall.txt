@@ -2,20 +2,28 @@
 $action     = "Install"
 $SourceApp  = "BIPublisherDesktop64_64bit.exe"
 $SourcePath = Join-Path $PSScriptRoot $SourceApp
+$ISSFile    = Join-Path $PSScriptRoot "setup.iss"
 $LogFile    = "C:\Windows\Temp\BIPublisher_Install.log"
-$LogPath    = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\BIPublisher_${action}.log"
+$LogPath    = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\BIPublisherDesktop64Bit_${action}.log"
 
 Start-Transcript -Path $LogPath -Append -Force
 
 try {
     Write-Output "Starting $action for BI Publisher Desktop 64-bit..."
 
+    Stop-Process -Name WINWORD -Force -ErrorAction SilentlyContinue
+
     if (-not (Test-Path $SourcePath)) {
         Write-Output "ERROR: EXE not found at $SourcePath"
         Exit 1
     }
 
-    $ArgumentList = "/s /v`"/qn /norestart /L*v `"$LogFile`"`""
+    if (-not (Test-Path $ISSFile)) {
+        Write-Output "ERROR: setup.iss not found at $ISSFile"
+        Exit 1
+    }
+
+    $ArgumentList = "/s /f1`"$ISSFile`" /f2`"$LogFile`""
     Write-Output "Launching installer: $SourcePath"
     Write-Output "Arguments: $ArgumentList"
 
@@ -23,37 +31,27 @@ try {
 
     Start-Sleep -Seconds 5
 
-    $RegApp = Get-ItemProperty `
-        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" ,
-        "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" `
-        -ErrorAction SilentlyContinue |
-        Where-Object {
-            $_.DisplayName -like "*BI Publisher*" -or
-            $_.DisplayName -like "*Template Builder for Word*"
-        } |
-        Select-Object -First 1
+    if (Test-Path $LogFile) {
+        $ResultLine = Get-Content $LogFile -ErrorAction SilentlyContinue | Select-String "ResultCode="
+        if ($ResultLine) {
+            $ResultCode = (($ResultLine -split "=")[1]).Trim()
+            Write-Output "InstallShield ResultCode: $ResultCode"
 
-    $FilePaths = @(
-        "C:\Program Files\Oracle\BI Publisher\BI Publisher Desktop\Template Builder for Word.xla",
-        "C:\Program Files (x86)\Oracle\BI Publisher\BI Publisher Desktop\Template Builder for Word.xla"
-    )
-
-    $FileFound = $false
-    foreach ($File in $FilePaths) {
-        if (Test-Path $File) {
-            $FileFound = $true
-            Write-Output "Found installed file: $File"
-            break
+            if ($ResultCode -eq "0") {
+                Write-Output "Installation completed successfully."
+                Exit 0
+            } else {
+                Write-Output "Installation failed. ResultCode: $ResultCode"
+                Exit 1
+            }
         }
     }
 
-    if ($RegApp -or $FileFound) {
-        Write-Output "Installation completed successfully."
+    if ($Process.ExitCode -eq 0) {
+        Write-Output "Installer exited successfully."
         Exit 0
-    }
-    else {
-        Write-Output "Installation failed. App not detected after install."
-        Write-Output "Process exit code: $($Process.ExitCode)"
+    } else {
+        Write-Output "Installer exit code: $($Process.ExitCode)"
         Exit 1
     }
 }
