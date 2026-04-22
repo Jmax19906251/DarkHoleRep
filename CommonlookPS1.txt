@@ -1,65 +1,102 @@
-$path = "HKLM:\SOFTWARE\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"
-
-# Ensure registry path exists
-if (!(Test-Path $path)) {
-    New-Item -Path $path -Force | Out-Null
-}
-
-# Enable whitelist feature
-New-ItemProperty -Path $path -Name "bUseWhitelistConfigFile" -PropertyType DWord -Value 1 -Force | Out-Null
-
-# Adobe install path (Acrobat)
-$installPath = "C:\Program Files\Adobe\Acrobat DC\Acrobat"
-
-# Create whitelist config file
-$configFile = Join-Path $installPath "ProtectedModeWhitelistConfig.txt"
-
-$configContent = @"
-; Adobe Protected Mode Whitelist
-FILES_ALLOW_ANY = *
-PROCESSES_ALLOW_ANY = *
-"@
-
-$configContent | Out-File -FilePath $configFile -Encoding ASCII -Force
-
-Write-Output "Whitelist enabled and config file created"
-exit 0
--------------------------------------------------------------
-
-$path = "HKLM:\SOFTWARE\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"
-
-# Ensure path exists
-if (!(Test-Path $path)) {
-    New-Item -Path $path -Force | Out-Null
-}
-
-# Disable feature but keep key
-New-ItemProperty -Path $path -Name "bUseWhitelistConfigFile" -PropertyType DWord -Value 0 -Force | Out-Null
-
-$installPath = "C:\Program Files\Adobe\Acrobat DC\Acrobat"
-$configFile = Join-Path $installPath "ProtectedModeWhitelistConfig.txt"
-
-if (Test-Path $configFile) {
-    Remove-Item $configFile -Force
-}
-
-Write-Output "Whitelist disabled and config file removed"
-exit 0
+Get-ItemProperty "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*","HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" |
+Where-Object {
+    $_.DisplayName -like "*BI Publisher*" -or
+    $_.DisplayName -like "*Template Builder for Word*"
+} |
+Select-Object DisplayName, DisplayVersion, UninstallString, PSPath
 
 
 
-----------------------------------------------------------------
+Test-Path "C:\Program Files\Oracle\BI Publisher\BI Publisher Desktop\Template Builder for Word.xla"
 
-$path = "HKLM:\SOFTWARE\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"
-$configFile = "C:\Program Files\Adobe\Acrobat DC\Acrobat\ProtectedModeWhitelistConfig.txt"
 
-if ((Test-Path $path) -and (Test-Path $configFile)) {
-    $value = (Get-ItemProperty -Path $path -Name "bUseWhitelistConfigFile" -ErrorAction SilentlyContinue).bUseWhitelistConfigFile
 
-    if ($value -eq 1) {
-        Write-Output "Detected"
-        exit 0
+
+#=====[ Script Settings ]=====#
+$action  = "Uninstall"
+$LogPath = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\BIPublisherDesktop64Bit_${action}.log"
+$AppFile = "C:\Program Files\Oracle\BI Publisher\BI Publisher Desktop\Template Builder for Word.xla"
+
+Start-Transcript -Path $LogPath -Append -Force
+
+try {
+    Write-Output "Starting uninstall for BI Publisher Desktop..."
+
+    $App = Get-ItemProperty `
+        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" ,
+        "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" `
+        -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.DisplayName -like "*BI Publisher*" -or
+            $_.DisplayName -like "*Template Builder for Word*"
+        } |
+        Select-Object -First 1
+
+    if (-not $App) {
+        Write-Output "App not found in uninstall registry."
+    }
+    else {
+        Write-Output "Found: $($App.DisplayName)"
+        Write-Output "UninstallString: $($App.UninstallString)"
+
+        $UninstallString = $App.UninstallString.Trim()
+
+        if ($UninstallString -match "msiexec") {
+            if ($UninstallString -match "({[A-Z0-9\-]+})") {
+                $ProductCode = $matches[1]
+                $Args = "/x $ProductCode /qn /norestart"
+                Write-Output "Running: msiexec.exe $Args"
+                $Process = Start-Process -FilePath "msiexec.exe" -ArgumentList $Args -Wait -PassThru -WindowStyle Hidden
+            }
+            else {
+                $Args = $UninstallString.Replace("MsiExec.exe","").Replace("msiexec.exe","").Trim()
+                if ($Args -notmatch "/x") {
+                    $Args = $Args -replace "/I","/x" -replace "/i","/x"
+                }
+                if ($Args -notmatch "/qn") {
+                    $Args = "$Args /qn /norestart"
+                }
+                Write-Output "Running: msiexec.exe $Args"
+                $Process = Start-Process -FilePath "msiexec.exe" -ArgumentList $Args -Wait -PassThru -WindowStyle Hidden
+            }
+        }
+        else {
+            Write-Output "Running EXE uninstall"
+            $Process = Start-Process -FilePath "cmd.exe" -ArgumentList "/c `"$UninstallString /s`"" -Wait -PassThru -WindowStyle Hidden
+        }
+
+        Write-Output "Exit code: $($Process.ExitCode)"
+    }
+
+    Start-Sleep -Seconds 5
+
+    $StillInRegistry = Get-ItemProperty `
+        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" ,
+        "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" `
+        -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.DisplayName -like "*BI Publisher*" -or
+            $_.DisplayName -like "*Template Builder for Word*"
+        } |
+        Select-Object -First 1
+
+    $FileStillExists = Test-Path $AppFile
+
+    if (-not $StillInRegistry -and -not $FileStillExists) {
+        Write-Output "Uninstall completed successfully."
+        Exit 0
+    }
+    else {
+        Write-Output "App still detected."
+        Write-Output "Registry present: $([bool]$StillInRegistry)"
+        Write-Output "File present: $FileStillExists"
+        Exit 1
     }
 }
-
-exit 1
+catch {
+    Write-Output "ERROR: $_"
+    Exit 1
+}
+finally {
+    Stop-Transcript | Out-Null
+}
