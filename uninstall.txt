@@ -1,16 +1,3 @@
-$App = Get-ItemProperty `
-"HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" ,
-"HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" `
--ErrorAction SilentlyContinue |
-Where-Object {
-    $_.DisplayName -like "*BI Publisher*" -or
-    $_.DisplayName -like "*Template Builder for Word*"
-} |
-Select-Object -First 1
-
-if ($App) {
-    Exit 0
-}
-else {
-    Exit 1
-}
+Get-ItemProperty "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" |
+Where-Object {$_.DisplayName -like "*BI Publisher*"} |
+ForEach-Object { Remove-Item $_.PSPath -Recurse -Force }
