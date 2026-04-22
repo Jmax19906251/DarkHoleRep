@@ -1,0 +1,58 @@
+Start-Process "C:\Program Files (x86)\InstallShield Installation Information\{SFCACFA0-4327-4320-9ED4-7B46FE4E30DD}\setup.exe" -ArgumentList "-runfromtemp -l0x0409 -removeonly -silent" -Wait
+
+
+
+
+
+
+
+
+#=====[ Script Settings ]=====#
+$action  = "Uninstall"
+$LogPath = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\BIPublisher_Uninstall.log"
+
+Start-Transcript -Path $LogPath -Append -Force
+
+try {
+
+Write-Output "Searching for BI Publisher uninstall entry..."
+
+$App = Get-ItemProperty `
+"HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" ,
+"HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" |
+Where-Object {$_.DisplayName -like "*BI Publisher*"}
+
+if ($App){
+
+Write-Output "Found $($App.DisplayName)"
+$UninstallString = $App.UninstallString
+
+Write-Output "Running uninstall: $UninstallString"
+
+Start-Process "cmd.exe" -ArgumentList "/c `"$UninstallString -silent`"" -Wait
+
+}
+
+Start-Sleep 5
+
+$Check = Get-ItemProperty `
+"HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" ,
+"HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" |
+Where-Object {$_.DisplayName -like "*BI Publisher*"}
+
+if(!$Check){
+Write-Output "Uninstall successful"
+Exit 0
+}
+else{
+Write-Output "Uninstall failed"
+Exit 1
+}
+
+}
+catch{
+Write-Output $_
+Exit 1
+}
+
+Stop-Transcript
