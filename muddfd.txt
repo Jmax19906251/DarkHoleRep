@@ -1,0 +1,56 @@
+#=====[ Script Settings ]=====#
+$AppName   = "Autodesk_MotionBuilder_2026"
+$Action    = "Install"
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ImageRoot = Join-Path $ScriptDir "image"
+$InstallerExe  = Join-Path $ImageRoot "Installer.exe"
+$CollectionXml = Join-Path $ImageRoot "Collection.xml"
+$LogPath   = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs"
+$LogFile   = Join-Path $LogPath "${AppName}_${Action}.log"
+
+#=====[ Pre-Checks ]=====#
+if (!(Test-Path $InstallerExe)) {
+    Write-Error "Installer not found: $InstallerExe"
+    exit 1
+}
+
+if (!(Test-Path $CollectionXml)) {
+    Write-Error "Collection.xml not found: $CollectionXml"
+    exit 1
+}
+
+if (!(Test-Path $LogPath)) {
+    New-Item -Path $LogPath -ItemType Directory -Force | Out-Null
+}
+
+#=====[ Execution ]=====#
+try {
+    $Arguments = "--ui deploy --offline_mode -q -o `"$CollectionXml`""
+
+    $Process = Start-Process -FilePath $InstallerExe `
+        -ArgumentList $Arguments `
+        -WorkingDirectory $ImageRoot `
+        -Wait `
+        -PassThru `
+        -NoNewWindow
+
+    $ExitCode = $Process.ExitCode
+
+    if ($ExitCode -in @(0,3010)) {
+        Write-Output "Install completed successfully. Exit code: $ExitCode"
+        exit 0
+    }
+    else {
+        Write-Error "Install failed. Exit code: $ExitCode"
+        exit $ExitCode
+    }
+}
+catch {
+    Write-Error "Install script error: $($_.Exception.Message)"
+    exit 1
+}
+
+
+Test-Path ".\Installer.exe"
+Test-Path ".\Collection.xml"
+.\Installer.exe --% --ui deploy --offline_mode -q -o ".\Collection.xml"
