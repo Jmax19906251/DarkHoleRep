@@ -1,21 +1,23 @@
 #=====[ Script Settings ]=====#
-$AppName   = "Autodesk_MotionBuilder_2026"
-$Action    = "Install"
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$ImageRoot = Join-Path $ScriptDir "image"
+$AppName = "Autodesk_MotionBuilder_2026"
+$Action  = "Install"
+
+$ScriptDir     = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ImageRoot     = Join-Path $ScriptDir "image"
 $InstallerExe  = Join-Path $ImageRoot "Installer.exe"
 $CollectionXml = Join-Path $ImageRoot "Collection.xml"
-$LogPath   = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs"
-$LogFile   = Join-Path $LogPath "${AppName}_${Action}.log"
 
-#=====[ Pre-Checks ]=====#
+$LogPath = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs"
+$LogFile = Join-Path $LogPath "${AppName}_${Action}.log"
+
+#=====[ Pre-Flight Checks ]=====#
 if (!(Test-Path $InstallerExe)) {
-    Write-Error "Installer not found: $InstallerExe"
+    Write-Error "INSTALLER NOT FOUND: $InstallerExe"
     exit 1
 }
 
 if (!(Test-Path $CollectionXml)) {
-    Write-Error "Collection.xml not found: $CollectionXml"
+    Write-Error "COLLECTION XML NOT FOUND: $CollectionXml"
     exit 1
 }
 
@@ -25,32 +27,44 @@ if (!(Test-Path $LogPath)) {
 
 #=====[ Execution ]=====#
 try {
-    $Arguments = "--ui deploy --offline_mode -q -o `"$CollectionXml`""
+    "[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] Starting $Action for $AppName" | Out-File $LogFile -Encoding utf8
+
+    Write-Output "Starting $Action for $AppName"
+    Write-Output "Installer Path: $InstallerExe"
+    Write-Output "Collection XML: $CollectionXml"
+
+    $ArgumentList = "--ui deploy --offline_mode -q --no_restart -o `"$CollectionXml`""
+
+    Write-Output "Running command: $InstallerExe $ArgumentList"
 
     $Process = Start-Process -FilePath $InstallerExe `
-        -ArgumentList $Arguments `
+        -ArgumentList $ArgumentList `
         -WorkingDirectory $ImageRoot `
         -Wait `
         -PassThru `
-        -NoNewWindow
+        -RedirectStandardOutput $LogFile `
+        -RedirectStandardError  "$LogFile.stderr.log"
 
     $ExitCode = $Process.ExitCode
 
-    if ($ExitCode -in @(0,3010)) {
+    "[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] Exit code: $ExitCode" | Out-File $LogFile -Append -Encoding utf8
+
+    if ($ExitCode -eq 0) {
         Write-Output "Install completed successfully. Exit code: $ExitCode"
         exit 0
     }
+    elseif ($ExitCode -eq 3010) {
+        Write-Warning "Installer returned 3010 (reboot requested) but reboots are suppressed. Exiting 0 — verify app functionality."
+        "[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] WARNING: Exit code 3010 - reboot suppressed." | Out-File $LogFile -Append -Encoding utf8
+        exit 0
+    }
     else {
-        Write-Error "Install failed. Exit code: $ExitCode"
+        Write-Error "INSTALLATION FAILED. Exit code: $ExitCode. Check log: $LogFile"
         exit $ExitCode
     }
 }
 catch {
-    Write-Error "Install script error: $($_.Exception.Message)"
+    Write-Error "PowerShell script error occurred: $($_.Exception.Message)"
+    "[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] ERROR: $($_.Exception.Message)" | Out-File $LogFile -Append -Encoding utf8
     exit 1
 }
-
-
-Test-Path ".\Installer.exe"
-Test-Path ".\Collection.xml"
-.\Installer.exe --% --ui deploy --offline_mode -q -o ".\Collection.xml"
