@@ -1,0 +1,14 @@
+#=====[ Execution ]=====#
+$InstallerPath = Join-Path $PSScriptRoot $SourceApp
+
+if (-not (Test-Path $InstallerPath)) {
+    Write-Error "Installer not found: $InstallerPath"
+    Exit 1
+}
+
+$process = Start-Process -FilePath $InstallerPath -ArgumentList "/VERYSILENT /NORESTART /LOG=`"$LogPath`"" -Wait -NoNewWindow -PassThru
+
+if ($process.ExitCode -ne 0) {
+    Write-Error "$action failed for $SourceApp (Exit code: $($process.ExitCode))"
+    Exit $process.ExitCode
+}
