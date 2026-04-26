@@ -1,0 +1,515 @@
+​You​
+#=====[ Script Settings ]=====#
+$action    = "Install"
+$SourceApp = "CalabrioONEDesktopSetup_calabriodfas11.5.87.exe"
+$LogPath   = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\${SourceApp}_${action}.log"
+
+$ArgumentList = @(
+    "/VERYSILENT"
+    "/NORESTART"
+    "/LOG=`"$LogPath`""
+)
+
+#=====[ Execution ]=====#
+$InstallerPath = Join-Path $PSScriptRoot $SourceApp
+
+if (-not (Test-Path $InstallerPath)) {
+    Write-Error "Installer not found: $InstallerPath"
+    Exit 1
+}
+
+$process = Start-Process -FilePath $InstallerPath -ArgumentList $ArgumentList -Wait -NoNewWindow -PassThru
+
+if ($process.ExitCode -ne 0) {
+    Write-Error "$action failed for $SourceApp (Exit code: $($process.ExitCode))"
+    Exit $process.ExitCode
+}
+
+Write-Host "$action`ed $SourceApp successfully"
+Exit 0
+
+
+
+#=====[ Script Settings ]=====#
+$action    = "Uninstall"
+$SourceApp = "Calabrio ONE"
+$LogPath   = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\${SourceApp}_${action}.log"
+
+#=====[ Get Uninstall String ]=====#
+$RegPath = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" |
+    Where-Object { $_.DisplayName -like "*Calabrio*" }
+
+if (-not $RegPath) {
+    Write-Host "Calabrio ONE not found in registry - may already be uninstalled"
+    Exit 0
+}
+
+$UninstallString = $RegPath.UninstallString
+
+#=====[ Execution ]=====#
+# UPDATE: Verify uninstall string arguments match your registry output
+$process = Start-Process -FilePath $UninstallString -ArgumentList @(
+    "/VERYSILENT"
+    "/NORESTART"
+    "/LOG=`"$LogPath`""
+) -Wait -NoNewWindow -PassThru
+
+if ($process.ExitCode -ne 0) {
+    Write-Error "$action failed for $SourceApp (Exit code: $($process.ExitCode))"
+    Exit $process.ExitCode
+}
+
+Write-Host "$action`ed $SourceApp successfully"
+Exit 0
+
+
+#=====[ Detection ]=====#
+$RegPath = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" |
+    Where-Object { $_.DisplayName -like "*Calabrio*" }
+
+if (-not $RegPath) {
+    Exit 1
+}
+
+# UPDATE: Verify version number matches your target
+$TargetVersion = "11.5.87"
+$InstalledVersion = $RegPath.DisplayVersion
+
+if ($InstalledVersion -like "*$TargetVersion*") {
+    Write-Host "Calabrio ONE $InstalledVersion detected"
+    Exit 0
+} else {
+    Exit 1
+}
+-------------------------------------------------------------------------------------------------------------
+
+#=====[ Script Settings ]=====#
+$action    = "Install"
+$SourceApp = "TextPadSetupv9-x64.exe"
+$LogPath   = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\${SourceApp}_${action}.log"
+
+$ArgumentList = @(
+    "/VERYSILENT"
+    "/NORESTART"
+    "/LOG=`"$LogPath`""
+)
+
+#=====[ Execution ]=====#
+$InstallerPath = Join-Path $PSScriptRoot $SourceApp
+
+if (-not (Test-Path $InstallerPath)) {
+    Write-Error "Installer not found: $InstallerPath"
+    Exit 1
+}
+
+$process = Start-Process -FilePath $InstallerPath -ArgumentList $ArgumentList -Wait -NoNewWindow -PassThru
+
+if ($process.ExitCode -ne 0) {
+    Write-Error "$action failed for $SourceApp (Exit code: $($process.ExitCode))"
+    Exit $process.ExitCode
+}
+
+#=====[ IL5 Compliance - Remove PortableWizard ]=====#
+$PortableWizard = "C:\Program Files\TextPad\PortableWizard.exe"
+
+try {
+    if (Test-Path $PortableWizard) {
+        Remove-Item $PortableWizard -Force -ErrorAction Stop
+        Write-Host "PortableWizard.exe removed for IL5 compliance"
+    }
+} catch {
+    Write-Error "FAILED to remove PortableWizard.exe - IL5 compliance not met. Aborting. $_"
+    Exit 1
+}
+
+Write-Host "$action`ed $SourceApp successfully"
+Exit 0
+
+
+#=====[ Script Settings ]=====#
+$action    = "Uninstall"
+$SourceApp = "TextPad"
+$LogPath   = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\${SourceApp}_${action}.log"
+
+#=====[ Get Uninstall String ]=====#
+$RegPath = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" |
+    Where-Object { $_.DisplayName -like "*TextPad*" }
+
+if (-not $RegPath) {
+    Write-Host "TextPad not found in registry - may already be uninstalled"
+    Exit 0
+}
+
+$UninstallString = $RegPath.UninstallString
+
+#=====[ Execution ]=====#
+# UPDATE: Replace the uninstall string arguments below to match your registry output
+$process = Start-Process -FilePath $UninstallString -ArgumentList @(
+    "/VERYSILENT"
+    "/NORESTART"
+    "/LOG=`"$LogPath`""
+) -Wait -NoNewWindow -PassThru
+
+if ($process.ExitCode -ne 0) {
+    Write-Error "$action failed for $SourceApp (Exit code: $($process.ExitCode))"
+    Exit $process.ExitCode
+}
+
+Write-Host "$action`ed $SourceApp successfully"
+Exit 0
+
+
+
+#=====[ Detection ]=====#
+$TextPadExe     = "C:\Program Files\TextPad\TextPad.exe"
+$PortableWizard = "C:\Program Files\TextPad\PortableWizard.exe"
+
+# Fail if TextPad is not installed
+if (-not (Test-Path $TextPadExe)) {
+    Exit 1
+}
+
+# Fail if PortableWizard still exists (IL5 non-compliant)
+if (Test-Path $PortableWizard) {
+    Exit 1
+}
+
+# Both checks passed
+Write-Host "TextPad detected and IL5 compliant"
+Exit 0
+----------------------------------------------------------------------------------------------------------------------------------------------
+
+#====[ Script Settings ]====#
+
+$action = "Install"
+$SourceApp = "azure-cli-2.77.0-x64.msi"
+$ArgumentList = @(
+    "/I"
+    "`"$SourceApp`""
+    "/qn"
+    "/norestart"
+    "/l*v"
+    "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\${SourceApp}_${action}.log"
+)
+
+#=======[ Execution ]=======#
+
+Start-Process -FilePath msiexec.exe -ArgumentList $ArgumentList -NoNewWindow -Wait
+Write-Host "${action}ed $SourceApp successfully"
+Exit 0
+
+
+#====[ Script Settings ]====#
+
+$action = "Uninstall"
+$SourceApp = "azure-cli-2.77.0-x64.msi"
+$ArgumentList = @(
+    "/X"
+    "`"$SourceApp`""
+    "/qn"
+    "/norestart"
+    "/l*v"
+    "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\${SourceApp}_${action}.log"
+)
+
+#=======[ Execution ]=======#
+
+Start-Process -FilePath msiexec.exe -ArgumentList $ArgumentList -NoNewWindow -Wait
+Write-Host "${action}ed $SourceApp successfully"
+Exit 0
+
+
+#====[ Script Settings ]====#
+
+$AppName = "Microsoft Azure CLI"
+$RequiredVersion = "2.77.0"
+
+#=======[ Execution ]=======#
+
+$detected = Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+                          "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall" |
+    Get-ItemProperty | Where-Object {
+        $_.DisplayName -like "*$AppName*" -and
+        [Version]$_.DisplayVersion -ge [Version]$RequiredVersion
+    }
+
+If ($detected) {
+    Write-Host "Detected $AppName $RequiredVersion"
+    Exit 0
+} Else {
+    Exit 1
+}
+
+----------------------------------------------------------------------------------------------------------------------------------------
+#=====[ Script Settings ]=====#
+$AppName     = "SecureFX"
+$AppVersion  = "9.6.4.3695"
+$LogPath     = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\SecureFX_Install.log"
+
+$Installer   = Join-Path $PSScriptRoot "sfx-x64-bsafe.9.6.4.3695.exe"
+$License     = Join-Path $PSScriptRoot "SecureFX.lic"
+
+$InstallDir  = "C:\Program Files\VanDyke Software\SecureFX"
+$LicenseDir  = "C:\ProgramData\VanDyke\Config"
+$LicenseDest = "$LicenseDir\SecureFX.lic"
+
+$exitCode = 0
+
+Start-Transcript -Path $LogPath -Append -Force
+
+try {
+    Write-Output "========================================"
+    Write-Output "  $AppName $AppVersion - Install"
+    Write-Output "  $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    Write-Output "========================================"
+
+    # Pre-flight: verify installer exists
+    if (!(Test-Path $Installer)) {
+        Write-Output "ERROR: Installer not found at $Installer"
+        $exitCode = 1
+        throw "Installer missing"
+    }
+
+    # Pre-flight: verify license exists
+    if (!(Test-Path $License)) {
+        Write-Output "ERROR: License file not found at $License"
+        $exitCode = 1
+        throw "License missing"
+    }
+
+    # Create license directory if needed
+    if (!(Test-Path $LicenseDir)) {
+        Write-Output "Creating license directory: $LicenseDir"
+        New-Item -Path $LicenseDir -ItemType Directory -Force | Out-Null
+    }
+
+    # Run installer silently
+    Write-Output "Running installer: $Installer"
+    $proc = Start-Process -FilePath $Installer -ArgumentList "/S" -Wait -NoNewWindow -PassThru
+
+    if ($proc.ExitCode -ne 0) {
+        Write-Output "ERROR: Installer exited with code $($proc.ExitCode)"
+        $exitCode = $proc.ExitCode
+        throw "Installer failed"
+    }
+
+    Write-Output "Installer completed successfully (exit code 0)"
+
+    # Copy license file
+    Write-Output "Copying license to: $LicenseDest"
+    Copy-Item -Path $License -Destination $LicenseDest -Force
+
+    # Verify installation
+    if (Test-Path $InstallDir) {
+        Write-Output "SUCCESS: $AppName installed at $InstallDir"
+        $exitCode = 0
+    }
+    else {
+        Write-Output "ERROR: Install directory not found after install: $InstallDir"
+        $exitCode = 1
+        throw "Post-install verification failed"
+    }
+}
+catch {
+    Write-Output "ERROR: $_"
+    if ($exitCode -eq 0) { $exitCode = 1 }
+}
+finally {
+    Write-Output "----------------------------------------"
+    Write-Output "Exit Code: $exitCode"
+    Write-Output "----------------------------------------"
+    Stop-Transcript
+}
+
+Exit $exitCode
+
+
+
+#=====[ Script Settings ]=====#
+$AppName    = "SecureFX"
+$LogPath    = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\SecureFX_Uninstall.log"
+
+$InstallDir  = "C:\Program Files\VanDyke Software\SecureFX"
+$LicenseDest = "C:\ProgramData\VanDyke\Config\SecureFX.lic"
+
+$UninstallKeys = @(
+    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+    "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+)
+
+$exitCode = 0
+
+Start-Transcript -Path $LogPath -Append -Force
+
+try {
+    Write-Output "========================================"
+    Write-Output "  $AppName - Uninstall"
+    Write-Output "  $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    Write-Output "========================================"
+
+    # Find uninstall string from registry
+    $uninstallString = $null
+    foreach ($key in $UninstallKeys) {
+        $found = Get-ChildItem -Path $key -ErrorAction SilentlyContinue |
+            Get-ItemProperty |
+            Where-Object { $_.DisplayName -like "*SecureFX*" } |
+            Select-Object -First 1 -ExpandProperty UninstallString
+
+        if ($found) {
+            $uninstallString = $found
+            Write-Output "Found uninstall string: $uninstallString"
+            break
+        }
+    }
+
+    if ($uninstallString) {
+        $uninstallExe = $uninstallString.Trim('"').Split(" ")[0]
+
+        Write-Output "Running uninstaller: $uninstallExe"
+        $proc = Start-Process -FilePath $uninstallExe -ArgumentList "/S" -Wait -NoNewWindow -PassThru
+
+        if ($proc.ExitCode -ne 0) {
+            Write-Output "WARNING: Uninstaller exited with code $($proc.ExitCode)"
+        }
+        else {
+            Write-Output "Uninstaller completed (exit code 0)"
+        }
+    }
+    else {
+        Write-Output "No registry uninstall entry found - may already be removed"
+    }
+
+    # Remove license file
+    if (Test-Path $LicenseDest) {
+        Write-Output "Removing license file: $LicenseDest"
+        Remove-Item -Path $LicenseDest -Force
+    }
+
+    # Verify removal
+    if (!(Test-Path $InstallDir)) {
+        Write-Output "SUCCESS: $AppName removed"
+        $exitCode = 0
+    }
+    else {
+        Write-Output "WARNING: Install directory still exists, forcing removal..."
+        Remove-Item -Path $InstallDir -Recurse -Force -ErrorAction SilentlyContinue
+
+        if (!(Test-Path $InstallDir)) {
+            Write-Output "SUCCESS: Directory forcefully removed"
+            $exitCode = 0
+        }
+        else {
+            Write-Output "ERROR: Unable to remove install directory"
+            $exitCode = 1
+        }
+    }
+}
+catch {
+    Write-Output "ERROR: $_"
+    if ($exitCode -eq 0) { $exitCode = 1 }
+}
+finally {
+    Write-Output "----------------------------------------"
+    Write-Output "Exit Code: $exitCode"
+    Write-Output "----------------------------------------"
+    Stop-Transcript
+}
+
+Exit $exitCode
+
+Detection 
+
+$MainExe = "C:\Program Files\VanDyke Software\SecureFX\SecureFX.exe"
+$ExpectedVersion = "9.6.4.3695"
+
+if (Test-Path $MainExe) {
+    $fileVersion = (Get-Item $MainExe).VersionInfo.ProductVersion.Trim()
+    if ($fileVersion -eq $ExpectedVersion) {
+        Write-Output "SecureFX $ExpectedVersion detected"
+        Exit 0
+    }
+}
+
+Exit 1
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#====[ Script Settings ]====#
+
+$action      = "Install"
+$SourceApp   = "OutputManagerClient15.0.2_x86.exe"
+$ArgumentList = @(
+    "/S"
+    "/v/qn"
+)
+
+#======[ Execution ]=======#
+
+$process = Start-Process -FilePath "$SourceApp" -ArgumentList $ArgumentList -NoNewWindow -Wait -PassThru
+Write-Host "${action}ed $SourceApp successfully"
+Exit $process.ExitCode0
+
+
+
+#====[ Detection - OutputManager Client 15.0.2 ]====#
+
+$AppName    = "Output Manager Client"
+$AppVersion = "15.0.2"
+
+# Check registry (covers both 32-bit and 64-bit entries)
+$regPaths = @(
+    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*",
+    "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+)
+
+$detected = $false
+
+foreach ($path in $regPaths) {
+    $app = Get-ItemProperty $path -ErrorAction SilentlyContinue |
+           Where-Object { $_.DisplayName -like "*$AppName*" -and $_.DisplayVersion -like "$AppVersion*" }
+    
+    if ($app) {
+        $detected = $true
+        break
+    }
+}
+
+if ($detected) {
+    Write-Host "Detected: $AppName $AppVersion"
+    Exit 0        # Intune sees this as INSTALLED
+} else {
+    Exit 1        # Intune sees this as NOT installed
+}
+
+#====[ Script Settings ]====#
+
+$action  = "Uninstall"
+$AppName = "Output Manager Client"
+
+# Find uninstall string from registry
+$regPaths = @(
+    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*",
+    "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+)
+
+$UninstallString = $null
+
+foreach ($path in $regPaths) {
+    $app = Get-ItemProperty $path -ErrorAction SilentlyContinue |
+           Where-Object { $_.DisplayName -like "*$AppName*" }
+    if ($app) {
+        $UninstallString = $app.UninstallString
+        break
+    }
+}
+
+#======[ Execution ]=======#
+
+if ($UninstallString) {
+    $process = Start-Process -FilePath $UninstallString -ArgumentList "/S" -NoNewWindow -Wait -PassThru
+    Write-Host "${action}ed $AppName successfully"
+    Exit $process.ExitCode
+} else {
+    Write-Host "$AppName not found, nothing to uninstall"
+    Exit 0
+}
