@@ -1,0 +1,35 @@
+#=====[ Script Settings ]=====#
+$action = "Install"
+$SourceApp = "CalabrioONEDesktopSetup_calabriofdas11.5.87.exe"
+$LogPath = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\${SourceApp}_${action}.log"
+
+$Arguments = "/VERYSILENT /NORESTART /LOG=`"$LogPath`""
+
+#=====[ Execution ]=====#
+$InstallerPath = Join-Path -Path $PSScriptRoot -ChildPath $SourceApp
+
+if (-not (Test-Path $InstallerPath)) {
+    Write-Error "Installer not found: $InstallerPath"
+    Exit 1
+}
+
+$process = Start-Process -FilePath $InstallerPath -ArgumentList $Arguments -Wait -PassThru
+
+Write-Output "Installer exit code: $($process.ExitCode)"
+
+if ($process.ExitCode -notin 0,3010) {
+    Write-Error "$action failed for $SourceApp (Exit code: $($process.ExitCode))"
+    Exit $process.ExitCode
+}
+
+#=====[ Detection / Test ]=====#
+$AppPath = "C:\Program Files (x86)\Calabrio ONE\Desktop\Wrapper\Install.exe"
+
+if (Test-Path $AppPath) {
+    Write-Output "Calabrio installed successfully. Found: $AppPath"
+    Exit 0
+}
+else {
+    Write-Error "Install finished, but Calabrio detection path was not found."
+    Exit 1
+}
