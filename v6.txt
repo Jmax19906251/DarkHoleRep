@@ -1,0 +1,39 @@
+#=====[ Script Settings ]=====#
+$action = "Uninstall"
+
+$RegPaths = @(
+"HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
+"HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+)
+
+$App = Get-ItemProperty $RegPaths -ErrorAction SilentlyContinue | Where-Object {
+    $_.DisplayName -like "*Camtasia*" -and $_.DisplayName -like "*2024*"
+} | Select-Object -First 1
+
+#=====[ Execution ]=====#
+
+if (!$App) {
+    Write-Host "Camtasia 2024 not found"
+    Exit 0
+}
+
+Write-Host "Found $($App.DisplayName)"
+
+# MSI uninstall
+if ($App.UninstallString -match "MsiExec") {
+
+    $Guid = [regex]::Match($App.UninstallString,'\{[A-Z0-9\-]+\}','IgnoreCase').Value
+
+    Start-Process "msiexec.exe" -ArgumentList "/x $Guid /qn /norestart" -Wait
+}
+
+# Cleanup registry entry
+$Key = $App.PSPath
+
+if ($Key) {
+    Remove-Item $Key -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host "Removed ARP registry entry"
+}
+
+Write-Host "Uninstall complete"
+Exit 0
