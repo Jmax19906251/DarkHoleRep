@@ -1,0 +1,45 @@
+#=====[ Script Settings ]=====#
+$action  = "Uninstall"
+$AppName = "CalabrioONE"
+$LogPath = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\${AppName}_${action}.log"
+
+$InstallFolder = "C:\Program Files (x86)\Calabrio ONE"
+
+Start-Transcript -Path $LogPath -Append -Force
+
+try {
+    Write-Output "Starting $AppName uninstall"
+
+    $App = Get-ItemProperty `
+        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*", `
+        "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" `
+        -ErrorAction SilentlyContinue |
+    Where-Object { $_.DisplayName -like "*Calabrio*" } |
+    Select-Object -First 1
+
+    if ($App -and $App.UninstallString -match "\{[A-Z0-9\-]+\}") {
+        $Guid = [regex]::Match($App.UninstallString, "\{[A-Z0-9\-]+\}", "IgnoreCase").Value
+
+        Write-Output "Uninstalling $($App.DisplayName) using GUID $Guid"
+
+        Start-Process "msiexec.exe" -ArgumentList "/x $Guid /qn /norestart REBOOT=ReallySuppress" -Wait
+    }
+    else {
+        Write-Output "Calabrio uninstall registry entry not found. Continuing cleanup."
+    }
+
+    Start-Sleep -Seconds 5
+
+    if (Test-Path $InstallFolder) {
+        Write-Output "Removing leftover folder: $InstallFolder"
+        Remove-Item $InstallFolder -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    Write-Output "$AppName uninstall completed"
+    Stop-Transcript
+    Exit 0
+}
+catch {
+    Write-Error "Uninstall failed: $_"
+    Stop-Transcript
+    Exit 1
