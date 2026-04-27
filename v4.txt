@@ -1,0 +1,190 @@
+#=====[ Script Settings ]=====#
+$action  = "Uninstall"
+$AppName = "CalabrioONE"
+$LogPath = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\${AppName}_${action}.log"
+
+$AppPath = "C:\Program Files (x86)\Calabrio ONE\Desktop\Wrapper\Install.exe"
+$InstallFolder = "C:\Program Files (x86)\Calabrio ONE"
+
+#=====[ Start Logging ]=====#
+Start-Transcript -Path $LogPath -Append -Force
+
+try {
+    Write-Output "Starting $AppName $action"
+
+    # Find installed app
+    $App = Get-ItemProperty `
+        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*", `
+        "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" `
+        -ErrorAction SilentlyContinue |
+    Where-Object {
+        $_.DisplayName -like "*Calabrio*"
+    } |
+    Select-Object -First 1
+
+    if (-not $App) {
+        Write-Output "$AppName not found in uninstall registry."
+
+        if (Test-Path $InstallFolder) {
+            Write-Output "Install folder still exists. Removing folder: $InstallFolder"
+            Remove-Item -Path $InstallFolder -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        Stop-Transcript
+        Exit 0
+    }
+
+    Write-Output "Found app: $($App.DisplayName)"
+    Write-Output "UninstallString: $($App.UninstallString)"
+
+    $UninstallString = $App.UninstallString
+
+    # MSI uninstall
+    if ($UninstallString -match "\{[A-Z0-9\-]+\}") {
+        $Guid = [regex]::Match($UninstallString, "\{[A-Z0-9\-]+\}", "IgnoreCase").Value
+
+        Write-Output "Detected MSI GUID: $Guid"
+        $process = Start-Process -FilePath "msiexec.exe" -ArgumentList "/x $Guid /qn /norestart REBOOT=ReallySuppress" -Wait -NoNewWindow -PassThru
+
+        Write-Output "MSI uninstall exit code: $($process.ExitCode)"
+
+        if ($process.ExitCode -notin 0,3010,1605) {
+            Write-Error "MSI uninstall failed. Exit code: $($process.ExitCode)"
+            Stop-Transcript
+            Exit $process.ExitCode
+        }
+    }
+    else {
+        Write-Output "Non-MSI uninstall detected. Attempting silent uninstall."
+
+        $CleanUninstall = $UninstallString.Trim('"')
+
+        $process = Start-Process -FilePath $CleanUninstall -ArgumentList "/VERYSILENT /NORESTART" -Wait -NoNewWindow -PassThru
+
+        Write-Output "EXE uninstall exit code: $($process.ExitCode)"
+
+        if ($process.ExitCode -notin 0,15,3010) {
+            Write-Error "EXE uninstall failed. Exit code: $($process.ExitCode)"
+            Stop-Transcript
+            Exit $process.ExitCode
+        }
+    }
+
+    Start-Sleep -Seconds 10
+
+    # Cleanup folder if left behind
+    if (Test-Path $InstallFolder) {
+        Write-Output "Removing leftover folder: $InstallFolder"
+        Remove-Item -Path $InstallFolder -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    # Final uninstall check
+    if (-not (Test-Path $AppPath)) {
+        Write-Output "$AppName uninstalled successfully."
+        Stop-Transcript
+        Exit 0
+    }
+    else {
+        Write-Error "$AppName uninstall completed, but detection file still exists: $AppPath"
+        Stop-Transcript
+        Exit 1
+    }
+}
+catch {
+    Write-Error "Unexpected error during $action: $_"
+    Stop-Transcript
+    Exit 1
+}
+
+
+
+
+
+
+
+#=====[ Script Settings ]=====#
+$action  = "Install"
+$AppName = "CalabrioONE"
+$LogPath = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\${AppName}_${action}.log"
+
+$InstallerName = "CalabrioONEDesktopSetup_calabriofdas11.5.87.exe"
+$InstallerPath = Join-Path -Path $PSScriptRoot -ChildPath $InstallerName
+
+$AppPath = "C:\Program Files (x86)\Calabrio ONE\Desktop\Wrapper\Install.exe"
+
+$Arguments = "/VERYSILENT /NORESTART /LOG=`"$LogPath`""
+
+#=====[ Start Logging ]=====#
+Start-Transcript -Path $LogPath -Append -Force
+
+try {
+    Write-Output "Starting $AppName $action"
+
+    # Check if already installed
+    if (Test-Path $AppPath) {
+        Write-Output "$AppName is already installed. Detected: $AppPath"
+        Stop-Transcript
+        Exit 0
+    }
+
+    # Check installer exists
+    if (-not (Test-Path $InstallerPath)) {
+        Write-Error "Installer not found: $InstallerPath"
+        Stop-Transcript
+        Exit 1
+    }
+
+    Write-Output "Installer found: $InstallerPath"
+    Write-Output "Running installer with arguments: $Arguments"
+
+    # Run installer
+    $process = Start-Process -FilePath $InstallerPath -ArgumentList $Arguments -Wait -NoNewWindow -PassThru
+
+    Write-Output "Installer exit code: $($process.ExitCode)"
+
+    # Calabrio may return 15 even when install succeeds
+    if ($process.ExitCode -in 0,15,3010) {
+
+        Start-Sleep -Seconds 10
+
+        if (Test-Path $AppPath) {
+            Write-Output "$AppName installed successfully. Detected: $AppPath"
+            Stop-Transcript
+            Exit 0
+        }
+        else {
+            Write-Error "Installer returned exit code $($process.ExitCode), but $AppName was not detected."
+            Stop-Transcript
+            Exit 1
+        }
+    }
+    else {
+        Write-Error "$action failed for $AppName. Exit code: $($process.ExitCode)"
+        Stop-Transcript
+        Exit $process.ExitCode
+    }
+}
+catch {
+    Write-Error "Unexpected error during $action: $_"
+    Stop-Transcript
+    Exit 1
+}
+
+
+#=====[ Detection Settings ]=====#
+$AppName = "CalabrioONE"
+$AppPath = "C:\Program Files (x86)\Calabrio ONE\Desktop\Wrapper\Install.exe"
+
+#=====[ Detection ]=====#
+if (Test-Path $AppPath) {
+    Write-Output "$AppName detected: $AppPath"
+    Exit 0
+}
+else {
+    Write-Output "$AppName not detected."
+    Exit 1
+}
+
+
+
+
