@@ -1,0 +1,63 @@
+#=====[ Script Settings ]=====#
+$action  = "Relicense"
+$AppName = "Adobe_Acrobat_FRL"
+$LogPath = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\${AppName}_${action}.log"
+
+$Toolkit = ".\adobe-licensing-toolkit.exe"
+$JsonFile = Get-ChildItem ".\*.json" -ErrorAction SilentlyContinue | Select-Object -First 1
+
+#=====[ Start Logging ]=====#
+Start-Transcript -Path $LogPath -Append -Force
+
+try {
+    Write-Output "Starting Adobe Acrobat FRL relicensing"
+
+    if (!(Test-Path $Toolkit)) {
+        Write-Output "ERROR: Adobe Licensing Toolkit not found."
+        Exit 1
+    }
+
+    if (!$JsonFile) {
+        Write-Output "ERROR: No JSON license file found in source folder."
+        Exit 1
+    }
+
+    Write-Output "Using JSON license file: $($JsonFile.FullName)"
+
+    # Close Adobe apps before relicensing
+    Write-Output "Closing Adobe applications..."
+    Get-Process Acrobat,AcroRd32,AdobeCollabSync,CreativeCloud -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+
+    Start-Sleep -Seconds 5
+
+    # Remove current/expired FRL license
+    Write-Output "Removing current Adobe FRL license..."
+    $Remove = Start-Process -FilePath $Toolkit -ArgumentList "-p -u -a" -Wait -PassThru -NoNewWindow
+
+    Write-Output "Remove license exit code: $($Remove.ExitCode)"
+
+    Start-Sleep -Seconds 5
+
+    # Install new FRL license from JSON
+    Write-Output "Installing new Adobe FRL license..."
+    $Install = Start-Process -FilePath $Toolkit -ArgumentList "-p -i -f `"$($JsonFile.FullName)`"" -Wait -PassThru -NoNewWindow
+
+    Write-Output "Install license exit code: $($Install.ExitCode)"
+
+    if ($Install.ExitCode -eq 0) {
+        Write-Output "Adobe FRL relicensing completed successfully."
+        Exit 0
+    }
+    else {
+        Write-Output "ERROR: Adobe FRL relicensing failed."
+        Exit 1
+    }
+}
+catch {
+    Write-Output "ERROR during Adobe FRL relicensing."
+    Write-Output $_.Exception.Message
+    Exit 1
+}
+finally {
+    Stop-Transcript
+}
