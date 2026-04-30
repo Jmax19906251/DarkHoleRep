@@ -1,0 +1,77 @@
+#=====[ Script Settings ]=====#
+$action  = "Install"
+$AppName = "ICUserApps"
+$LogPath = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\${AppName}_${action}.log"
+
+$MSIFile = "ICUserApps_64bit_2023_R3.msi"
+$MSPFile = "ICUserApps_64bit_2023_R3_Patch19.msp"
+
+#=====[ Start Logging ]=====#
+Start-Transcript -Path $LogPath -Append -Force
+
+try {
+    Write-Output "Starting $AppName $action"
+
+    # Move to Intune package source folder
+    Push-Location $PSScriptRoot
+
+    Write-Output "Current directory: $(Get-Location)"
+    Write-Output "Checking for MSI: $MSIFile"
+    Write-Output "Checking for MSP: $MSPFile"
+
+    if (!(Test-Path ".\$MSIFile")) {
+        throw "MSI file not found: $MSIFile"
+    }
+
+    if (!(Test-Path ".\$MSPFile")) {
+        throw "MSP file not found: $MSPFile"
+    }
+
+    # Install MSI
+    Write-Output "Installing MSI..."
+    $MSIArgs = "/i `"$MSIFile`" /qn /norestart /L*v `"C:\Windows\Temp\${AppName}_MSI_Install.log`""
+
+    $MSIProcess = Start-Process `
+        -FilePath "msiexec.exe" `
+        -ArgumentList $MSIArgs `
+        -Wait `
+        -PassThru
+
+    Write-Output "MSI exit code: $($MSIProcess.ExitCode)"
+
+    if ($MSIProcess.ExitCode -ne 0 -and $MSIProcess.ExitCode -ne 3010) {
+        throw "MSI install failed with exit code $($MSIProcess.ExitCode)"
+    }
+
+    # Install MSP
+    Write-Output "Installing MSP patch..."
+    $MSPArgs = "/p `"$MSPFile`" /qn /norestart /L*v `"C:\Windows\Temp\${AppName}_MSP_Install.log`""
+
+    $MSPProcess = Start-Process `
+        -FilePath "msiexec.exe" `
+        -ArgumentList $MSPArgs `
+        -Wait `
+        -PassThru
+
+    Write-Output "MSP exit code: $($MSPProcess.ExitCode)"
+
+    if ($MSPProcess.ExitCode -ne 0 -and $MSPProcess.ExitCode -ne 3010) {
+        throw "MSP patch failed with exit code $($MSPProcess.ExitCode)"
+    }
+
+    Write-Output "$AppName $action completed successfully"
+
+    Pop-Location
+    Stop-Transcript
+    Exit 0
+}
+catch {
+    Write-Output "ERROR: $($_.Exception.Message)"
+
+    try {
+        Pop-Location
+    } catch {}
+
+    Stop-Transcript
+    Exit 1
+}
