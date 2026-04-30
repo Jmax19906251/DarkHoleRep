@@ -1,10 +1,10 @@
 #=====[ Script Settings ]=====#
-$action = "Install"
+$action  = "Install"
 $AppName = "OutputManager"
 $LogPath = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\${AppName}_${action}.log"
 
 $SourceApp = "$PSScriptRoot\OutPutManagerClient15.0.2_x86.exe"
-$ISSFile   = "$PSScriptRoot\Installation of EOM Client Application.iss"
+$ISSFile   = "$PSScriptRoot\InstallationEOM.iss"
 $ISLog     = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\${AppName}_InstallShield.log"
 
 #=====[ Start Logging ]=====#
@@ -25,7 +25,13 @@ try {
         Exit 1
     }
 
-    $Arguments = "/s /f1`"$ISSFile`" /f2`"$ISLog`""
+    $Arguments = @(
+        "/s",
+        "/f1`"$ISSFile`"",
+        "/f2`"$ISLog`""
+    )
+
+    Write-Output "Arguments: $($Arguments -join ' ')"
 
     $process = Start-Process -FilePath $SourceApp -ArgumentList $Arguments -Wait -PassThru
 
@@ -47,8 +53,6 @@ catch {
 finally {
     Stop-Transcript
 }
-
-
 
 
 #=====[ Script Settings ]=====#
