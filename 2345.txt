@@ -1,4 +1,0 @@
-​You​
-New-Item -Path "C:\Temp" -ItemType Directory -Force
-
-.\sfx-x64-bsafe.9.6.4.3695.exe /r /f1"C:\Temp\SecureFX.iss"
