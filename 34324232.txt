@@ -1,0 +1,32 @@
+Customer Email Version
+
+Subject: Packaging Delay – Licensing and Installer Requirements
+
+Hello,
+
+During testing for packaging this application for Intune deployment, we encountered an issue preventing us from moving forward.
+
+The application license currently appears to be in use on another machine, which prevents installation on our test system. Because of this, we are unable to complete the testing required for packaging.
+
+Additionally, the Visual Studio Professional installer provided installs the full suite through the Visual Studio Installer. For enterprise deployment through Intune, the installers need to be separated so that each application or component can be packaged individually.
+
+To proceed with packaging, we will need:
+
+Resolution of the licensing conflict so the application can be installed on a test system.
+Separate installers or an offline layout for the required Visual Studio components.
+
+Once these items are available, we can resume testing and continue with packaging.
+
+Thank you.
+
+Best regards,
+[Your Name]
+
+
+
+
+
+SITREP Version (Short)
+
+Application packaging is currently on hold due to a licensing conflict preventing installation on the test system. Additionally, the Visual Studio Professional installer provided installs the full suite through the Visual Studio Installer, which does not allow for individual application packaging. Separate installers or an offline layout will be required to proceed with Intune packaging and testing.
+
