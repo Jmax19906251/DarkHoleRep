@@ -1,0 +1,126 @@
+#=====[ Script Settings ]=====#
+$action = "Install"
+$AppName = "OutputManager"
+$LogPath = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\${AppName}_${action}.log"
+
+$SourceApp = "$PSScriptRoot\OutPutManagerClient15.0.2_x86.exe"
+$ISSFile   = "$PSScriptRoot\Installation of EOM Client Application.iss"
+$ISLog     = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\${AppName}_InstallShield.log"
+
+#=====[ Start Logging ]=====#
+Start-Transcript -Path $LogPath -Append -Force
+
+try {
+    Write-Output "Starting $AppName install..."
+    Write-Output "Installer: $SourceApp"
+    Write-Output "ISS File: $ISSFile"
+
+    if (!(Test-Path $SourceApp)) {
+        Write-Output "ERROR: Installer not found."
+        Exit 1
+    }
+
+    if (!(Test-Path $ISSFile)) {
+        Write-Output "ERROR: ISS file not found."
+        Exit 1
+    }
+
+    $Arguments = "/s /f1`"$ISSFile`" /f2`"$ISLog`""
+
+    $process = Start-Process -FilePath $SourceApp -ArgumentList $Arguments -Wait -PassThru
+
+    Write-Output "Installer exit code: $($process.ExitCode)"
+
+    if ($process.ExitCode -eq 0) {
+        Write-Output "$AppName installed successfully."
+        Exit 0
+    }
+    else {
+        Write-Output "$AppName install failed. Check log: $ISLog"
+        Exit $process.ExitCode
+    }
+}
+catch {
+    Write-Output "ERROR: $($_.Exception.Message)"
+    Exit 1
+}
+finally {
+    Stop-Transcript
+}
+
+
+
+
+#=====[ Script Settings ]=====#
+$action  = "Uninstall"
+$AppName = "OutputManager"
+$LogPath = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\${AppName}_${action}.log"
+
+Start-Transcript -Path $LogPath -Append -Force
+
+try {
+    Write-Output "Starting $AppName uninstall..."
+
+    $App = Get-ItemProperty `
+        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*", `
+        "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" `
+        -ErrorAction SilentlyContinue |
+        Where-Object { $_.DisplayName -like "*Output Manager*" -or $_.DisplayName -like "*OutPutManager*" -or $_.DisplayName -like "*EOM*" } |
+        Select-Object -First 1
+
+    if (!$App) {
+        Write-Output "$AppName not found. Nothing to uninstall."
+        Exit 0
+    }
+
+    Write-Output "Found: $($App.DisplayName)"
+
+    if ($App.UninstallString -match '\{[A-F0-9\-]+\}') {
+        $Guid = [regex]::Match($App.UninstallString, '\{[A-F0-9\-]+\}', 'IgnoreCase').Value
+        Start-Process "msiexec.exe" -ArgumentList "/x $Guid /qn /norestart" -Wait
+    }
+    else {
+        Start-Process "cmd.exe" -ArgumentList "/c $($App.UninstallString) /quiet /norestart" -Wait
+    }
+
+    Write-Output "$AppName uninstall completed."
+    Exit 0
+}
+catch {
+    Write-Output "ERROR: $($_.Exception.Message)"
+    Exit 1
+}
+finally {
+    Stop-Transcript
+}
+
+
+
+
+
+$ExePath = "C:\Program Files (x86)\Enterprise Output Manager\OutPutManagerClient.exe"
+
+if (Test-Path $ExePath) {
+
+    $Version = (Get-Item $ExePath).VersionInfo.FileVersion
+    Write-Output "Detected Output Manager version $Version"
+
+    Exit 0
+}
+else {
+    Write-Output "Output Manager not detected"
+    Exit 1
+}
+
+
+
+
+
+Get-Process | Where-Object {$_.ProcessName -like "*output*"}
+
+
+
+
+
+
+
