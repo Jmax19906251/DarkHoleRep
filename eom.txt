@@ -125,6 +125,14 @@ Get-Process | Where-Object {$_.ProcessName -like "*output*"}
 
 
 
+Push-Location $PSScriptRoot
+
+$process = Start-Process `
+    -FilePath ".\OutPutManagerClient15.0.2_x86.exe" `
+    -ArgumentList "/s /f1`"InstallationEOM.iss`" /f2`"$ISLog`"" `
+    -Wait -PassThru
+
+Pop-Location
 
 
 
