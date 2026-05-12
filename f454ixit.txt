@@ -1,0 +1,12 @@
+#=====[ Activate Adobe FRL JSON ]=====#
+$LicenseArguments = "-p -i -f `"$FullJsonPath`""
+
+$LicenseProcess = Start-Process `
+    -FilePath $FullToolkitPath `
+    -ArgumentList $LicenseArguments `
+    -Wait `
+    -PassThru
+
+if ($LicenseProcess.ExitCode -ne 0) {
+    exit $LicenseProcess.ExitCode
+}
