@@ -1,0 +1,98 @@
+#=====[ Script Settings ]=====#
+$action = "Install"
+$SourceApp = "DWHA-InCopy(21.3) FRL Offline.msi"
+$LicenseToolkit = "adobe-licensing-toolkit.exe"
+$LicenseJson = "Creative_Cloud_2027_07_14_FRL_ngl-preconditioning-data.json"
+
+$LogDir = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs"
+$MsiLogPath = "$LogDir\InCopy_Install.log"
+$LicenseLogPath = "$LogDir\InCopy_License.log"
+
+Write-Host "Beginning installation process for: $SourceApp"
+
+#=====[ Pre-Flight Checks ]=====#
+if (-not (Test-Path -Path $LogDir)) {
+    New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+}
+
+$FullSourcePath = Join-Path -Path $PSScriptRoot -ChildPath $SourceApp
+$FullToolkitPath = Join-Path -Path $PSScriptRoot -ChildPath $LicenseToolkit
+$FullJsonPath = Join-Path -Path $PSScriptRoot -ChildPath $LicenseJson
+
+if (-not (Test-Path -Path $FullSourcePath)) {
+    Write-Error "CRITICAL ERROR: Cannot find MSI file at $FullSourcePath"
+    exit 1619
+}
+
+if (-not (Test-Path -Path $FullToolkitPath)) {
+    Write-Error "CRITICAL ERROR: Cannot find Adobe licensing toolkit at $FullToolkitPath"
+    exit 1
+}
+
+if (-not (Test-Path -Path $FullJsonPath)) {
+    Write-Error "CRITICAL ERROR: Cannot find Adobe licensing JSON at $FullJsonPath"
+    exit 1
+}
+
+#=====[ Install MSI ]=====#
+try {
+    $MsiArguments = "/i `"$FullSourcePath`" /qn /norestart /lv `"$MsiLogPath`""
+
+    Write-Host "Executing msiexec.exe $MsiArguments"
+
+    $MsiProcess = Start-Process `
+        -FilePath "msiexec.exe" `
+        -ArgumentList $MsiArguments `
+        -NoNewWindow `
+        -Wait `
+        -PassThru
+
+    Write-Host "MSI installation completed with Exit Code $($MsiProcess.ExitCode)"
+
+    if (($MsiProcess.ExitCode -ne 0) -and ($MsiProcess.ExitCode -ne 3010)) {
+        Write-Error "MSI installation failed with Exit Code $($MsiProcess.ExitCode)"
+        exit $MsiProcess.ExitCode
+    }
+}
+catch {
+    Write-Error "Failed to initiate MSI installation process. $_"
+    exit 1
+}
+
+#=====[ Apply Adobe FRL License ]=====#
+try {
+    $LicenseArguments = "-p -i -f `"$FullJsonPath`""
+
+    Write-Host "Applying Adobe FRL license using $LicenseToolkit"
+    Write-Host "Executing $FullToolkitPath $LicenseArguments"
+
+    $LicenseProcess = Start-Process `
+        -FilePath $FullToolkitPath `
+        -ArgumentList $LicenseArguments `
+        -NoNewWindow `
+        -Wait `
+        -PassThru `
+        -RedirectStandardOutput $LicenseLogPath `
+        -RedirectStandardError $LicenseLogPath
+
+    Write-Host "Adobe licensing completed with Exit Code $($LicenseProcess.ExitCode)"
+
+    if ($LicenseProcess.ExitCode -ne 0) {
+        Write-Error "Adobe licensing failed with Exit Code $($LicenseProcess.ExitCode)"
+        exit $LicenseProcess.ExitCode
+    }
+}
+catch {
+    Write-Error "Failed to apply Adobe FRL license. $_"
+    exit 1
+}
+
+Write-Host "Install and licensing completed successfully."
+
+# Return 3010 if MSI required reboot, otherwise success
+if ($MsiProcess.ExitCode -eq 3010) {
+    exit 3010
+}
+else {
+    exit 0
+}
