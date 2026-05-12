@@ -1,0 +1,45 @@
+#=====[ Script Settings ]=====#
+$SourceApp = "DWHA-InCopy(21.3) FRL Offline.msi"
+$LicenseToolkit = "adobe-licensing-toolkit.exe"
+$LicenseJson = "Creative_Cloud_2027_07_14_FRL_ngl-preconditioning-data.json"
+
+$LogPath = "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\InCopy_License.log"
+
+$FullSourcePath = Join-Path $PSScriptRoot $SourceApp
+$FullToolkitPath = Join-Path $PSScriptRoot $LicenseToolkit
+$FullJsonPath = Join-Path $PSScriptRoot $LicenseJson
+
+#=====[ Install MSI ]=====#
+$MsiArguments = "/i `"$FullSourcePath`" /qn /norestart"
+
+$MsiProcess = Start-Process `
+    -FilePath "msiexec.exe" `
+    -ArgumentList $MsiArguments `
+    -Wait `
+    -PassThru
+
+if (($MsiProcess.ExitCode -ne 0) -and ($MsiProcess.ExitCode -ne 3010)) {
+    exit $MsiProcess.ExitCode
+}
+
+#=====[ Activate Adobe FRL JSON ]=====#
+$LicenseArguments = "-p -i -f `"$FullJsonPath`""
+
+$LicenseProcess = Start-Process `
+    -FilePath $FullToolkitPath `
+    -ArgumentList $LicenseArguments `
+    -Wait `
+    -PassThru `
+    -RedirectStandardOutput $LogPath `
+    -RedirectStandardError $LogPath
+
+if ($LicenseProcess.ExitCode -ne 0) {
+    exit $LicenseProcess.ExitCode
+}
+
+if ($MsiProcess.ExitCode -eq 3010) {
+    exit 3010
+}
+else {
+    exit 0
+}
